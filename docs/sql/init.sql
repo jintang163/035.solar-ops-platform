@@ -274,3 +274,149 @@ INSERT INTO work_order (order_no, station_id, inverter_id, fault_code, fault_nam
 ('WO20240101001', 1, 3, 'INV_NO_COMM', '逆变器通讯中断', 3, '3号逆变器通讯中断，已离线超过24小时', NULL, 0, 1, NULL, NULL, NULL, NULL, NULL, DATE_ADD(NOW(), INTERVAL 24 HOUR), DATE_SUB(NOW(), INTERVAL 2 DAY)),
 ('WO20240101002', 2, 8, 'INV_LOW_EFF', '逆变器效率偏低', 2, '8号逆变器PR值持续低于0.7，疑似效率异常', NULL, 1, 1, 2, '运维工程师-李工', DATE_SUB(NOW(), INTERVAL 3 HOUR), NULL, NULL, DATE_ADD(NOW(), INTERVAL 24 HOUR), DATE_SUB(NOW(), INTERVAL 5 HOUR)),
 ('WO20240101003', 1, 1, 'INV_OVER_TEMP', '逆变器过温', 3, '1号逆变器温度过高，达到65度', '已清理散热片，更换故障已排除', 4, 1, 2, '运维工程师-李工', DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 36 HOUR), DATE_SUB(NOW(), INTERVAL 24 HOUR), DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_SUB(NOW(), INTERVAL 3 DAY));
+
+-- =====================================================
+-- 10. 资产台账表
+-- =====================================================
+DROP TABLE IF EXISTS asset;
+CREATE TABLE asset (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    asset_code VARCHAR(64) NOT NULL COMMENT '资产编号',
+    asset_name VARCHAR(100) NOT NULL COMMENT '资产名称',
+    asset_type VARCHAR(50) NOT NULL COMMENT '资产类型：station-电站 inverter-逆变器 combiner-汇流箱 panel-光伏组件 transformer-变压器 other-其他',
+    station_id BIGINT NOT NULL COMMENT '所属电站ID',
+    device_sn VARCHAR(64) DEFAULT NULL COMMENT '设备序列号',
+    device_model VARCHAR(100) DEFAULT NULL COMMENT '设备型号',
+    brand VARCHAR(100) DEFAULT NULL COMMENT '品牌',
+    specification VARCHAR(255) DEFAULT NULL COMMENT '规格参数',
+    capacity DECIMAL(12,2) DEFAULT NULL COMMENT '容量(kW)',
+    install_date DATE DEFAULT NULL COMMENT '安装日期',
+    warranty_start_date DATE DEFAULT NULL COMMENT '质保开始日期',
+    warranty_end_date DATE DEFAULT NULL COMMENT '质保到期日期',
+    warranty_months INT DEFAULT NULL COMMENT '质保期限(月)',
+    supplier VARCHAR(100) DEFAULT NULL COMMENT '供应商',
+    manufacturer VARCHAR(100) DEFAULT NULL COMMENT '生产厂家',
+    install_location VARCHAR(255) DEFAULT NULL COMMENT '安装位置',
+    longitude DECIMAL(10,6) DEFAULT NULL COMMENT '经度',
+    latitude DECIMAL(10,6) DEFAULT NULL COMMENT '纬度',
+    purchase_amount DECIMAL(12,2) DEFAULT NULL COMMENT '采购金额',
+    responsible_person VARCHAR(50) DEFAULT NULL COMMENT '责任人',
+    asset_status TINYINT NOT NULL DEFAULT 1 COMMENT '资产状态 1-正常 2-运维中 3-已退役 4-已报废',
+    qr_code_url VARCHAR(255) DEFAULT NULL COMMENT '二维码图片地址',
+    remark TEXT DEFAULT NULL COMMENT '备注',
+    create_time DATETIME DEFAULT NULL COMMENT '创建时间',
+    update_time DATETIME DEFAULT NULL COMMENT '更新时间',
+    deleted TINYINT DEFAULT 0 COMMENT '逻辑删除 0未删除 1已删除',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_asset_code (asset_code),
+    KEY idx_station_id (station_id),
+    KEY idx_asset_type (asset_type),
+    KEY idx_asset_status (asset_status),
+    KEY idx_warranty_end_date (warranty_end_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='资产台账表';
+
+-- =====================================================
+-- 11. 设备维修记录表
+-- =====================================================
+DROP TABLE IF EXISTS maintenance_record;
+CREATE TABLE maintenance_record (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    asset_id BIGINT NOT NULL COMMENT '资产ID',
+    record_no VARCHAR(64) NOT NULL COMMENT '维修记录编号',
+    fault_description TEXT DEFAULT NULL COMMENT '故障描述',
+    fault_type VARCHAR(50) DEFAULT NULL COMMENT '故障类型',
+    maintenance_type TINYINT NOT NULL DEFAULT 1 COMMENT '维修类型 1-日常维护 2-故障维修 3-定期巡检 4-备件更换',
+    maintenance_time DATETIME DEFAULT NULL COMMENT '维修时间',
+    maintenance_person VARCHAR(50) DEFAULT NULL COMMENT '维修人员',
+    maintenance_content TEXT DEFAULT NULL COMMENT '维修内容',
+    solution TEXT DEFAULT NULL COMMENT '解决方案',
+    photos TEXT DEFAULT NULL COMMENT '维修照片(JSON数组)',
+    cost DECIMAL(12,2) DEFAULT NULL COMMENT '维修费用',
+    work_order_id BIGINT DEFAULT NULL COMMENT '关联工单ID',
+    remark VARCHAR(512) DEFAULT NULL COMMENT '备注',
+    create_time DATETIME DEFAULT NULL COMMENT '创建时间',
+    update_time DATETIME DEFAULT NULL COMMENT '更新时间',
+    deleted TINYINT DEFAULT 0 COMMENT '逻辑删除 0未删除 1已删除',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_record_no (record_no),
+    KEY idx_asset_id (asset_id),
+    KEY idx_maintenance_time (maintenance_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='设备维修记录表';
+
+-- =====================================================
+-- 12. 备件更换记录表
+-- =====================================================
+DROP TABLE IF EXISTS spare_part;
+CREATE TABLE spare_part (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    maintenance_record_id BIGINT NOT NULL COMMENT '维修记录ID',
+    asset_id BIGINT NOT NULL COMMENT '资产ID',
+    part_code VARCHAR(64) NOT NULL COMMENT '备件编号',
+    part_name VARCHAR(100) NOT NULL COMMENT '备件名称',
+    part_model VARCHAR(100) DEFAULT NULL COMMENT '备件型号',
+    brand VARCHAR(100) DEFAULT NULL COMMENT '品牌',
+    specification VARCHAR(255) DEFAULT NULL COMMENT '规格',
+    quantity INT NOT NULL DEFAULT 1 COMMENT '更换数量',
+    unit_price DECIMAL(12,2) DEFAULT NULL COMMENT '单价',
+    total_price DECIMAL(12,2) DEFAULT NULL COMMENT '总价',
+    supplier VARCHAR(100) DEFAULT NULL COMMENT '供应商',
+    replace_time DATETIME DEFAULT NULL COMMENT '更换时间',
+    operator VARCHAR(50) DEFAULT NULL COMMENT '操作人员',
+    remark VARCHAR(512) DEFAULT NULL COMMENT '备注',
+    create_time DATETIME DEFAULT NULL COMMENT '创建时间',
+    update_time DATETIME DEFAULT NULL COMMENT '更新时间',
+    deleted TINYINT DEFAULT 0 COMMENT '逻辑删除 0未删除 1已删除',
+    PRIMARY KEY (id),
+    KEY idx_maintenance_record_id (maintenance_record_id),
+    KEY idx_asset_id (asset_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='备件更换记录表';
+
+-- =====================================================
+-- 13. 质保提醒表
+-- =====================================================
+DROP TABLE IF EXISTS warranty_reminder;
+CREATE TABLE warranty_reminder (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    asset_id BIGINT NOT NULL COMMENT '资产ID',
+    asset_code VARCHAR(64) NOT NULL COMMENT '资产编号',
+    asset_name VARCHAR(100) NOT NULL COMMENT '资产名称',
+    warranty_end_date DATE NOT NULL COMMENT '质保到期日期',
+    days_left INT NOT NULL COMMENT '剩余天数',
+    reminder_type TINYINT NOT NULL DEFAULT 1 COMMENT '提醒类型 1-邮件 2-App推送 3-邮件+App推送',
+    reminder_status TINYINT NOT NULL DEFAULT 0 COMMENT '提醒状态 0-未提醒 1-已提醒',
+    reminder_time DATETIME DEFAULT NULL COMMENT '提醒时间',
+    receivers VARCHAR(255) DEFAULT NULL COMMENT '接收人(逗号分隔)',
+    create_time DATETIME DEFAULT NULL COMMENT '创建时间',
+    update_time DATETIME DEFAULT NULL COMMENT '更新时间',
+    deleted TINYINT DEFAULT 0 COMMENT '逻辑删除 0未删除 1已删除',
+    PRIMARY KEY (id),
+    KEY idx_asset_id (asset_id),
+    KEY idx_reminder_status (reminder_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='质保提醒表';
+
+-- =====================================================
+-- 初始化资产数据
+-- =====================================================
+INSERT INTO asset (asset_code, asset_name, asset_type, station_id, device_sn, device_model, brand, specification, capacity, install_date, warranty_start_date, warranty_end_date, warranty_months, supplier, manufacturer, install_location, longitude, latitude, purchase_amount, responsible_person, asset_status, create_time, update_time) VALUES
+('AST-ST001', '阳光一号光伏电站', 'station', 1, NULL, 'ST-5MW', '阳光电源', '装机容量5MW', 5000.00, '2023-06-01', '2023-06-01', '2028-05-31', 60, '阳光电源股份有限公司', '阳光电源股份有限公司', '北京市海淀区中关村大街1号', 116.310000, 39.980000, 2500000.00, '张工', 1, NOW(), NOW()),
+('AST-INV001', '1号逆变器', 'inverter', 1, 'INV-001-2024', 'SUN-100KTL', '阳光电源', '100kW组串式逆变器', 100.00, '2023-06-15', '2023-06-15', '2028-06-14', 60, '阳光电源股份有限公司', '阳光电源股份有限公司', 'A区1号机房', 116.310100, 39.980100, 125000.00, '张工', 1, NOW(), NOW()),
+('AST-INV002', '2号逆变器', 'inverter', 1, 'INV-002-2024', 'SUN-100KTL', '阳光电源', '100kW组串式逆变器', 100.00, '2023-06-15', '2023-06-15', '2028-06-14', 60, '阳光电源股份有限公司', '阳光电源股份有限公司', 'A区2号机房', 116.310200, 39.980200, 125000.00, '张工', 1, NOW(), NOW()),
+('AST-CB001', 'A区1号汇流箱', 'combiner', 1, 'CB-A001', 'CB-16路', '华为', '16路直流汇流箱', NULL, '2023-06-10', '2023-06-10', '2026-06-09', 36, '华为技术有限公司', '华为技术有限公司', 'A区阵列', 116.310300, 39.980300, 8500.00, '张工', 1, NOW(), NOW()),
+('AST-PL001', 'A区光伏组串1', 'panel', 1, 'PL-A001', 'PERC-550W', '隆基绿能', '550W单晶PERC组件', 0.55, '2023-05-20', '2023-05-20', '2033-05-19', 120, '隆基绿能科技股份有限公司', '隆基绿能科技股份有限公司', 'A区屋顶', 116.310400, 39.980400, 850000.00, '张工', 1, NOW(), NOW()),
+('AST-TR001', '1号变压器', 'transformer', 1, 'TR-001', 'S11-630KVA', '特变电工', '630kVA油浸式变压器', 630.00, '2023-06-01', '2023-06-01', '2028-05-31', 60, '特变电工股份有限公司', '特变电工股份有限公司', '主变配电室', 116.310500, 39.980500, 85000.00, '张工', 1, NOW(), NOW()),
+('AST-ST002', '绿色能源二号电站', 'station', 2, NULL, 'ST-3MW', '华为', '装机容量3MW', 3000.00, '2023-08-01', '2023-08-01', '2026-07-31', 36, '华为技术有限公司', '华为技术有限公司', '上海市浦东新区张江高科技园区', 121.550000, 31.200000, 1800000.00, '李工', 1, NOW(), NOW()),
+('AST-INV003', '3号逆变器', 'inverter', 2, 'INV-003-2024', 'SUN-50KTL', '阳光电源', '50kW组串式逆变器', 50.00, '2023-08-15', '2023-08-15', '2026-08-14', 36, '阳光电源股份有限公司', '阳光电源股份有限公司', 'B区1号机房', 121.550100, 31.200100, 65000.00, '李工', 1, NOW(), NOW());
+
+-- =====================================================
+-- 初始化维修记录数据
+-- =====================================================
+INSERT INTO maintenance_record (asset_id, record_no, fault_description, fault_type, maintenance_type, maintenance_time, maintenance_person, maintenance_content, solution, cost, work_order_id, remark, create_time, update_time) VALUES
+(2, 'MR20240101001', '逆变器温度过高', '温度故障', 2, '2024-01-10 14:30:00', '王工', '检查散热系统，清洁散热片，更换故障风扇', '已清理散热片，更换故障风扇，温度恢复正常', 1500.00, 1, '例行维护记录', NOW(), NOW()),
+(3, 'MR20240115001', '通讯中断', '通讯故障', 2, '2024-01-15 10:00:00', '李工', '检查通讯模块，重启设备', '重启通讯模块，更换损坏的通讯模块', 3200.00, 2, '更换通讯模块', NOW(), NOW());
+
+-- =====================================================
+-- 初始化备件更换数据
+-- =====================================================
+INSERT INTO spare_part (maintenance_record_id, asset_id, part_code, part_name, part_model, brand, specification, quantity, unit_price, total_price, supplier, replace_time, operator, remark, create_time, update_time) VALUES
+(1, 2, 'SP-FAN001', '散热风扇', 'FAN-12038', '台达', '120*120*38mm 24V', 2, 150.00, 300.00, '台达电子', '2024-01-10 15:00:00', '王工', '更换故障散热风扇', NOW(), NOW()),
+(2, 3, 'SP-MOD001', '4G通讯模块', 'MOD-4G-01', '华为', '4G全网通模块', 1, 2800.00, 2800.00, '华为技术有限公司', '2024-01-15 11:00:00', '李工', '更换损坏的4G通讯模块', NOW(), NOW());

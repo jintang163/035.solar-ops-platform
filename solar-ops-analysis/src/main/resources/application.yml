@@ -54,6 +54,21 @@ spring:
             threadCount: 10
             threadPriority: 5
 
+  mail:
+    host: smtp.qq.com
+    port: 465
+    username: noreply@solar.com
+    password: your-password
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          starttls:
+            enable: true
+            required: true
+
 influxdb:
   url: http://localhost:8086
   username: admin
@@ -87,3 +102,7 @@ knife4j:
     concat: solar-ops
     version: 1.0.0
     terms-of-service-url: http://www.solar.com
+
+warranty:
+  reminder:
+    days: 30

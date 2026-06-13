@@ -16,6 +16,18 @@
       }
     },
     {
+      "path": "pages/scan/scan",
+      "style": {
+        "navigationBarTitleText": "扫码"
+      }
+    },
+    {
+      "path": "pages/asset/asset-detail",
+      "style": {
+        "navigationBarTitleText": "资产详情"
+      }
+    },
+    {
       "path": "pages/efficiency/efficiency",
       "style": {
         "navigationBarTitleText": "效率分析"

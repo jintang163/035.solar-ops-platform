@@ -10,6 +10,12 @@
             <text>运行中</text>
           </view>
         </view>
+        <view class="header-actions">
+          <view class="scan-btn" @click="goToScan">
+            <text class="scan-icon">📷</text>
+            <text class="scan-text">扫码</text>
+          </view>
+        </view>
         <view class="header-time">{{ currentTime }}</view>
       </view>
     </view>
@@ -232,6 +238,12 @@ function goToDetail(item) {
   uni.showToast({ title: `查看 ${item.name}`, icon: 'none' })
 }
 
+function goToScan() {
+  uni.navigateTo({
+    url: '/pages/scan/scan'
+  })
+}
+
 function onRefresh() {
   loadStationMap().then(() => fetchData()).finally(() => {
     uni.stopPullDownRefresh()
@@ -284,6 +296,33 @@ onPullDownRefresh(() => {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16rpx;
+}
+
+.header-actions {
+  position: absolute;
+  top: 0;
+  right: 30rpx;
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+
+.scan-btn {
+  display: flex;
+  align-items: center;
+  padding: 12rpx 20rpx;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 24rpx;
+  gap: 8rpx;
+}
+
+.scan-icon {
+  font-size: 28rpx;
+}
+
+.scan-text {
+  font-size: 24rpx;
+  color: #ffffff;
 }
 
 .station-name {

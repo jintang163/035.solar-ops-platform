@@ -8,6 +8,9 @@ import StationList from '../pages/station/StationList'
 import EfficiencyAnalysis from '../pages/efficiency/EfficiencyAnalysis'
 import WorkOrderList from '../pages/workorder/WorkOrderList'
 import UserManagement from '../pages/settings/UserManagement'
+import AssetList from '../pages/asset/AssetList'
+import AssetDetail from '../pages/asset/AssetDetail'
+import QrCodeManager from '../pages/asset/QrCodeManager'
 
 const routes = [
   {
@@ -23,6 +26,9 @@ const routes = [
       { path: 'monitor/inverter', element: <InverterMonitor /> },
       { path: 'station/list', element: <StationList /> },
       { path: 'efficiency/analysis', element: <EfficiencyAnalysis /> },
+      { path: 'asset/list', element: <AssetList /> },
+      { path: 'asset/detail/:id', element: <AssetDetail /> },
+      { path: 'asset/qrcode', element: <QrCodeManager /> },
       { path: 'workorder/list', element: <WorkOrderList /> },
       { path: 'settings/user', element: <UserManagement /> }
     ]

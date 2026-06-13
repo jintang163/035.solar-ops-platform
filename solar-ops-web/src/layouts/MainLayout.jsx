@@ -11,7 +11,9 @@ import {
   BellOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
-  MenuUnfoldOutlined
+  MenuUnfoldOutlined,
+  AppstoreOutlined,
+  QrcodeOutlined
 } from '@ant-design/icons'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { getUser, clearAuth } from '../utils/auth'
@@ -54,6 +56,21 @@ const menuItems = [
       {
         key: '/efficiency/analysis',
         label: '效率分析'
+      }
+    ]
+  },
+  {
+    key: '/asset',
+    icon: <AppstoreOutlined />,
+    label: '资产管理',
+    children: [
+      {
+        key: '/asset/list',
+        label: '资产列表'
+      },
+      {
+        key: '/asset/qrcode',
+        label: '二维码管理'
       }
     ]
   },

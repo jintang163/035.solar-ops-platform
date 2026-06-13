@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.solar.ops.admin.mapper.AssetMapper">
+
+    <resultMap id="AssetDetailVOMap" type="com.solar.ops.admin.vo.AssetDetailVO">
+        <id column="id" property="id"/>
+        <result column="asset_code" property="assetCode"/>
+        <result column="asset_name" property="assetName"/>
+        <result column="asset_type" property="assetType"/>
+        <result column="asset_type_desc" property="assetTypeDesc"/>
+        <result column="station_id" property="stationId"/>
+        <result column="station_name" property="stationName"/>
+        <result column="device_sn" property="deviceSn"/>
+        <result column="device_model" property="deviceModel"/>
+        <result column="brand" property="brand"/>
+        <result column="specification" property="specification"/>
+        <result column="capacity" property="capacity"/>
+        <result column="install_date" property="installDate"/>
+        <result column="warranty_start_date" property="warrantyStartDate"/>
+        <result column="warranty_end_date" property="warrantyEndDate"/>
+        <result column="warranty_months" property="warrantyMonths"/>
+        <result column="supplier" property="supplier"/>
+        <result column="manufacturer" property="manufacturer"/>
+        <result column="install_location" property="installLocation"/>
+        <result column="longitude" property="longitude"/>
+        <result column="latitude" property="latitude"/>
+        <result column="purchase_amount" property="purchaseAmount"/>
+        <result column="responsible_person" property="responsiblePerson"/>
+        <result column="asset_status" property="assetStatus"/>
+        <result column="asset_status_desc" property="assetStatusDesc"/>
+        <result column="qr_code_url" property="qrCodeUrl"/>
+        <result column="remark" property="remark"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <select id="selectAssetPage" resultMap="AssetDetailVOMap">
+        SELECT
+            a.id,
+            a.asset_code,
+            a.asset_name,
+            a.asset_type,
+            CASE a.asset_type
+                WHEN 'station' THEN '电站'
+                WHEN 'inverter' THEN '逆变器'
+                WHEN 'combiner' THEN '汇流箱'
+                WHEN 'panel' THEN '光伏组件'
+                WHEN 'transformer' THEN '变压器'
+                ELSE '其他'
+            END AS asset_type_desc,
+            a.station_id,
+            s.station_name,
+            a.device_sn,
+            a.device_model,
+            a.brand,
+            a.specification,
+            a.capacity,
+            a.install_date,
+            a.warranty_start_date,
+            a.warranty_end_date,
+            a.warranty_months,
+            a.supplier,
+            a.manufacturer,
+            a.install_location,
+            a.longitude,
+            a.latitude,
+            a.purchase_amount,
+            a.responsible_person,
+            a.asset_status,
+            CASE a.asset_status
+                WHEN 1 THEN '正常'
+                WHEN 2 THEN '运维中'
+                WHEN 3 THEN '已退役'
+                WHEN 4 THEN '已报废'
+                ELSE '未知'
+            END AS asset_status_desc,
+            a.qr_code_url,
+            a.remark,
+            a.create_time,
+            a.update_time
+        FROM asset a
+        LEFT JOIN station s ON a.station_id = s.id
+        WHERE a.deleted = 0
+        <if test="query.stationId != null">
+            AND a.station_id = #{query.stationId}
+        </if>
+        <if test="query.assetType != null and query.assetType != ''">
+            AND a.asset_type = #{query.assetType}
+        </if>
+        <if test="query.assetStatus != null">
+            AND a.asset_status = #{query.assetStatus}
+        </if>
+        <if test="query.keyword != null and query.keyword != ''">
+            AND (
+                a.asset_name LIKE CONCAT('%', #{query.keyword}, '%')
+                OR a.asset_code LIKE CONCAT('%', #{query.keyword}, '%')
+                OR a.device_model LIKE CONCAT('%', #{query.keyword}, '%')
+                OR a.device_sn LIKE CONCAT('%', #{query.keyword}, '%')
+            )
+        </if>
+        <if test="query.warrantyStatus != null">
+            <choose>
+                <when test="query.warrantyStatus == 2">
+                    AND DATEDIFF(a.warranty_end_date, NOW()) &lt;= 30
+                    AND DATEDIFF(a.warranty_end_date, NOW()) &gt; 0
+                </when>
+                <when test="query.warrantyStatus == 3">
+                    AND DATEDIFF(a.warranty_end_date, NOW()) &lt;= 0
+                </when>
+                <otherwise>
+                    AND DATEDIFF(a.warranty_end_date, NOW()) &gt; 30
+                </otherwise>
+            </choose>
+        </if>
+        ORDER BY a.create_time DESC
+    </select>
+
+    <select id="selectAssetDetailById" resultMap="AssetDetailVOMap">
+        SELECT
+            a.id,
+            a.asset_code,
+            a.asset_name,
+            a.asset_type,
+            CASE a.asset_type
+                WHEN 'station' THEN '电站'
+                WHEN 'inverter' THEN '逆变器'
+                WHEN 'combiner' THEN '汇流箱'
+                WHEN 'panel' THEN '光伏组件'
+                WHEN 'transformer' THEN '变压器'
+                ELSE '其他'
+            END AS asset_type_desc,
+            a.station_id,
+            s.station_name,
+            a.device_sn,
+            a.device_model,
+            a.brand,
+            a.specification,
+            a.capacity,
+            a.install_date,
+            a.warranty_start_date,
+            a.warranty_end_date,
+            a.warranty_months,
+            a.supplier,
+            a.manufacturer,
+            a.install_location,
+            a.longitude,
+            a.latitude,
+            a.purchase_amount,
+            a.responsible_person,
+            a.asset_status,
+            CASE a.asset_status
+                WHEN 1 THEN '正常'
+                WHEN 2 THEN '运维中'
+                WHEN 3 THEN '已退役'
+                WHEN 4 THEN '已报废'
+                ELSE '未知'
+            END AS asset_status_desc,
+            a.qr_code_url,
+            a.remark,
+            a.create_time,
+            a.update_time
+        FROM asset a
+        LEFT JOIN station s ON a.station_id = s.id
+        WHERE a.id = #{id} AND a.deleted = 0
+    </select>
+
+</mapper>
