@@ -8,6 +8,7 @@ import com.solar.ops.admin.enums.AssetStatusEnum;
 import com.solar.ops.admin.mapper.AssetMapper;
 import com.solar.ops.admin.mapper.SysUserMapper;
 import com.solar.ops.admin.mapper.WarrantyReminderMapper;
+import com.solar.ops.analysis.service.AppPushService;
 import org.quartz.Job;
 import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
@@ -22,7 +23,9 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
@@ -41,6 +44,9 @@ public class WarrantyReminderJob implements Job {
 
     @Autowired(required = false)
     private JavaMailSender mailSender;
+
+    @Autowired(required = false)
+    private AppPushService appPushService;
 
     @Value("${spring.mail.username:noreply@solar.com}")
     private String mailFrom;
@@ -94,15 +100,22 @@ public class WarrantyReminderJob implements Job {
                     reminder.setReceivers(receivers);
 
                     boolean mailSent = sendEmail(reminder, users);
-                    if (mailSent) {
+                    boolean appPushSent = sendAppPush(asset, (int) daysLeft, users);
+
+                    if (mailSent && appPushSent) {
+                        reminder.setReminderStatus(2);
+                    } else if (mailSent || appPushSent) {
                         reminder.setReminderStatus(1);
-                        reminder.setReminderTime(LocalDateTime.now());
                     } else {
                         reminder.setReminderStatus(0);
                     }
+                    if (mailSent || appPushSent) {
+                        reminder.setReminderTime(LocalDateTime.now());
+                    }
 
                     warrantyReminderMapper.insert(reminder);
-                    log.info("已创建质保提醒: 资产={}, 剩余{}天", asset.getAssetName(), daysLeft);
+                    log.info("已创建质保提醒: 资产={}, 剩余{}天, 邮件发送={}, APP推送={}",
+                            asset.getAssetName(), daysLeft, mailSent, appPushSent);
                 }
             }
 
@@ -146,6 +159,36 @@ public class WarrantyReminderJob implements Job {
             return true;
         } catch (Exception e) {
             log.error("发送质保提醒邮件失败", e);
+            return false;
+        }
+    }
+
+    private boolean sendAppPush(Asset asset, int daysLeft, List<SysUser> users) {
+        if (appPushService == null) {
+            log.warn("APP推送服务未配置，跳过APP推送");
+            return false;
+        }
+
+        try {
+            String title = "【质保提醒】" + asset.getAssetName();
+            String content = String.format("设备 %s (编号: %s) 质保期还有%d天到期，请及时处理",
+                    asset.getAssetName(), asset.getAssetCode(), daysLeft);
+
+            Map<String, String> extras = new HashMap<>();
+            extras.put("type", "warranty_reminder");
+            extras.put("assetId", String.valueOf(asset.getId()));
+            extras.put("assetCode", asset.getAssetCode());
+            extras.put("assetName", asset.getAssetName());
+            extras.put("daysLeft", String.valueOf(daysLeft));
+            extras.put("warrantyEndDate", String.valueOf(asset.getWarrantyEndDate()));
+
+            boolean pushSuccess = appPushService.pushToUsers(users, title, content, extras);
+            if (pushSuccess) {
+                log.info("质保提醒APP推送已发送: {}", asset.getAssetName());
+            }
+            return pushSuccess;
+        } catch (Exception e) {
+            log.error("发送质保提醒APP推送失败", e);
             return false;
         }
     }

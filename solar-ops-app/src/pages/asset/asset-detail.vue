@@ -18,8 +18,8 @@
         </view>
         <view class="warranty-item">
           <text class="warranty-label">状态</text>
-          <view class="status-tag" :class="asset.status">
-            {{ getStatusText(asset.status) }}
+          <view class="status-tag" :class="getStatusClass(asset.assetStatus)">
+            {{ getStatusText(asset.assetStatus) }}
           </view>
         </view>
       </view>
@@ -76,7 +76,7 @@
           <view class="info-title">质保信息</view>
           <view class="info-row">
             <text class="info-label">质保期限</text>
-            <text class="info-value">{{ asset.warrantyPeriod ? asset.warrantyPeriod + ' 个月' : '-' }}</text>
+            <text class="info-value">{{ asset.warrantyMonths ? asset.warrantyMonths + ' 个月' : '-' }}</text>
           </view>
           <view class="info-row">
             <text class="info-label">质保开始</text>
@@ -92,7 +92,7 @@
           <view class="info-title">供应商信息</view>
           <view class="info-row">
             <text class="info-label">供应商</text>
-            <text class="info-value">{{ asset.supplierName || '-' }}</text>
+            <text class="info-value">{{ asset.supplier || '-' }}</text>
           </view>
           <view class="info-row">
             <text class="info-label">生产厂家</text>
@@ -124,7 +124,7 @@
             @click="viewMaintenanceDetail(item)"
           >
             <view class="maintenance-header">
-              <view class="maintenance-type" :class="item.maintenanceType">
+              <view class="maintenance-type" :class="getMaintenanceTypeClass(item.maintenanceType)">
                 {{ getMaintenanceTypeText(item.maintenanceType) }}
               </view>
               <text class="maintenance-time">{{ formatDate(item.maintenanceTime) }}</text>
@@ -133,14 +133,14 @@
               <text class="fault-desc" v-if="item.faultDescription">
                 故障：{{ item.faultDescription }}
               </text>
-              <text class="work-content" v-if="item.workContent">
-                内容：{{ item.workContent }}
+              <text class="work-content" v-if="item.maintenanceContent">
+                内容：{{ item.maintenanceContent }}
               </text>
             </view>
             <view class="maintenance-footer">
-              <text class="operator">维修人：{{ item.operator || '-' }}</text>
-              <text class="cost" v-if="item.maintenanceCost">
-                ¥{{ item.maintenanceCost }}
+              <text class="operator">维修人：{{ item.maintenancePerson || '-' }}</text>
+              <text class="cost" v-if="item.cost">
+                ¥{{ item.cost }}
               </text>
             </view>
           </view>
@@ -153,7 +153,7 @@
       </view>
     </view>
     
-    <view class="action-bar" v-if="asset && asset.status === 'normal'">
+    <view class="action-bar" v-if="asset && asset.assetStatus === 1">
       <view class="action-btn retire-btn" @click="handleRetire">
         <text>资产退役</text>
       </view>
@@ -186,7 +186,7 @@
           <view class="form-group">
             <text class="form-label">维修人员</text>
             <input 
-              v-model="formData.operator" 
+              v-model="formData.maintenancePerson" 
               class="form-input" 
               placeholder="请输入维修人员"
             />
@@ -208,7 +208,7 @@
           <view class="form-group">
             <text class="form-label">维修费用</text>
             <input 
-              v-model="formData.maintenanceCost" 
+              v-model="formData.cost" 
               class="form-input" 
               type="digit"
               placeholder="请输入维修费用"
@@ -227,7 +227,7 @@
           <view class="form-group">
             <text class="form-label">维修内容</text>
             <textarea 
-              v-model="formData.workContent" 
+              v-model="formData.maintenanceContent" 
               class="form-textarea" 
               placeholder="请描述维修内容"
             />
@@ -285,7 +285,7 @@
                 </view>
                 <view class="spare-part-row">
                   <input 
-                    v-model="part.model" 
+                    v-model="part.partModel" 
                     class="form-input small" 
                     placeholder="型号"
                   />
@@ -332,13 +332,13 @@
           <view class="detail-section">
             <view class="detail-row">
               <text class="detail-label">维修类型</text>
-              <view class="detail-type" :class="currentDetail.maintenanceType">
+              <view class="detail-type" :class="getMaintenanceTypeClass(currentDetail.maintenanceType)">
                 {{ getMaintenanceTypeText(currentDetail.maintenanceType) }}
               </view>
             </view>
             <view class="detail-row">
               <text class="detail-label">维修人员</text>
-              <text class="detail-value">{{ currentDetail.operator || '-' }}</text>
+              <text class="detail-value">{{ currentDetail.maintenancePerson || '-' }}</text>
             </view>
             <view class="detail-row">
               <text class="detail-label">维修时间</text>
@@ -347,7 +347,7 @@
             <view class="detail-row">
               <text class="detail-label">维修费用</text>
               <text class="detail-value price">
-                {{ currentDetail.maintenanceCost ? '¥' + currentDetail.maintenanceCost : '-' }}
+                {{ currentDetail.cost ? '¥' + currentDetail.cost : '-' }}
               </text>
             </view>
           </view>
@@ -357,9 +357,9 @@
             <text class="section-content">{{ currentDetail.faultDescription }}</text>
           </view>
           
-          <view class="detail-section" v-if="currentDetail.workContent">
+          <view class="detail-section" v-if="currentDetail.maintenanceContent">
             <view class="section-subtitle">维修内容</view>
-            <text class="section-content">{{ currentDetail.workContent }}</text>
+            <text class="section-content">{{ currentDetail.maintenanceContent }}</text>
           </view>
           
           <view class="detail-section" v-if="currentDetail.solution">
@@ -397,7 +397,7 @@
                 :key="index"
               >
                 <text class="spare-td">{{ part.partName }}</text>
-                <text class="spare-td">{{ part.model || '-' }}</text>
+                <text class="spare-td">{{ part.partModel || '-' }}</text>
                 <text class="spare-td">{{ part.quantity }}</text>
                 <text class="spare-td">¥{{ part.unitPrice || '0' }}</text>
                 <text class="spare-td price">¥{{ part.totalPrice || '0' }}</text>
@@ -439,12 +439,12 @@ const maintenanceTypeOptions = ['日常维护', '故障维修', '定期巡检', 
 
 const formData = reactive({
   maintenanceTypeIndex: 0,
-  maintenanceType: 'daily',
-  operator: '',
+  maintenanceType: 1,
+  maintenancePerson: '',
   maintenanceDate: '',
-  maintenanceCost: '',
+  cost: '',
   faultDescription: '',
-  workContent: '',
+  maintenanceContent: '',
   solution: ''
 })
 
@@ -457,18 +457,18 @@ const ASSET_TYPE_MAP = {
   other: '其他'
 }
 
-const STATUS_MAP = {
-  normal: { text: '正常', class: 'status-normal' },
-  maintenance: { text: '运维中', class: 'status-maintenance' },
-  retired: { text: '已退役', class: 'status-retired' },
-  scrapped: { text: '已报废', class: 'status-scrapped' }
+const ASSET_STATUS_MAP = {
+  1: { text: '正常', class: 'status-normal' },
+  2: { text: '运维中', class: 'status-maintenance' },
+  3: { text: '已退役', class: 'status-retired' },
+  4: { text: '已报废', class: 'status-scrapped' }
 }
 
 const MAINTENANCE_TYPE_MAP = {
-  daily: { text: '日常维护', class: 'type-daily' },
-  fault: { text: '故障维修', class: 'type-fault' },
-  inspection: { text: '定期巡检', class: 'type-inspection' },
-  spare: { text: '备件更换', class: 'type-spare' }
+  1: { text: '日常维护', class: 'type-1' },
+  2: { text: '故障维修', class: 'type-2' },
+  3: { text: '定期巡检', class: 'type-3' },
+  4: { text: '备件更换', class: 'type-4' }
 }
 
 const warrantyStatusClass = computed(() => {
@@ -505,7 +505,8 @@ onMounted(() => {
 
 async function fetchAssetDetail(id) {
   try {
-    asset.value = await getAssetDetail(id)
+    const data = await getAssetDetail(id)
+    asset.value = data || {}
   } catch (e) {
     console.error('获取资产详情失败:', e)
     uni.showToast({ title: '获取资产详情失败', icon: 'none' })
@@ -515,15 +516,20 @@ async function fetchAssetDetail(id) {
 async function fetchMaintenanceList(assetId) {
   try {
     const data = await getMaintenanceRecords(assetId)
-    maintenanceList.value = data.list || data || []
-    maintenanceList.value.forEach(item => {
-      if (item.photos && typeof item.photos === 'string') {
+    const list = data.list || data || []
+    maintenanceList.value = list.map(item => {
+      const result = { ...item }
+      if (result.photos && typeof result.photos === 'string') {
         try {
-          item.photos = JSON.parse(item.photos)
+          result.photos = JSON.parse(result.photos)
         } catch (e) {
-          item.photos = item.photos.split(',').filter(Boolean)
+          result.photos = result.photos.split(',').filter(Boolean)
         }
       }
+      if (result.cost !== undefined && result.cost !== null) {
+        result.cost = Number(result.cost).toFixed(2)
+      }
+      return result
     })
   } catch (e) {
     console.error('获取维修记录失败:', e)
@@ -535,21 +541,31 @@ function getAssetTypeText(type) {
 }
 
 function getStatusText(status) {
-  return STATUS_MAP[status]?.text || status
+  return ASSET_STATUS_MAP[status]?.text || status
+}
+
+function getStatusClass(status) {
+  return ASSET_STATUS_MAP[status]?.class || 'status-normal'
 }
 
 function getMaintenanceTypeText(type) {
   if (typeof type === 'number') {
-    return maintenanceTypeOptions[type]
+    return MAINTENANCE_TYPE_MAP[type]?.text || maintenanceTypeOptions[type - 1] || type
   }
   return MAINTENANCE_TYPE_MAP[type]?.text || type
+}
+
+function getMaintenanceTypeClass(type) {
+  if (typeof type === 'number') {
+    return MAINTENANCE_TYPE_MAP[type]?.class || 'type-1'
+  }
+  return MAINTENANCE_TYPE_MAP[type]?.class || 'type-1'
 }
 
 function onTypeChange(e) {
   const index = e.detail.value
   formData.maintenanceTypeIndex = index
-  const typeMap = { 0: 'daily', 1: 'fault', 2: 'inspection', 3: 'spare' }
-  formData.maintenanceType = typeMap[index]
+  formData.maintenanceType = index + 1
 }
 
 function onDateChange(e) {
@@ -600,7 +616,7 @@ function addSparePart() {
   spareParts.value.push({
     partCode: '',
     partName: '',
-    model: '',
+    partModel: '',
     brand: '',
     quantity: '',
     unitPrice: ''
@@ -618,12 +634,12 @@ function closeAddModal() {
 
 function resetForm() {
   formData.maintenanceTypeIndex = 0
-  formData.maintenanceType = 'daily'
-  formData.operator = ''
+  formData.maintenanceType = 1
+  formData.maintenancePerson = ''
   formData.maintenanceDate = ''
-  formData.maintenanceCost = ''
+  formData.cost = ''
   formData.faultDescription = ''
-  formData.workContent = ''
+  formData.maintenanceContent = ''
   formData.solution = ''
   photoUrls.value = []
   spareParts.value = []
@@ -635,7 +651,7 @@ function viewMaintenanceDetail(item) {
 }
 
 async function submitMaintenance() {
-  if (!formData.operator) {
+  if (!formData.maintenancePerson) {
     uni.showToast({ title: '请输入维修人员', icon: 'none' })
     return
   }
@@ -643,7 +659,10 @@ async function submitMaintenance() {
   const validSpareParts = spareParts.value
     .filter(part => part.partName && part.partCode)
     .map(part => ({
-      ...part,
+      partCode: part.partCode,
+      partName: part.partName,
+      partModel: part.partModel,
+      brand: part.brand,
       quantity: part.quantity ? parseInt(part.quantity) : null,
       unitPrice: part.unitPrice ? parseFloat(part.unitPrice) : null,
       totalPrice: part.unitPrice && part.quantity ? 
@@ -653,13 +672,12 @@ async function submitMaintenance() {
   const data = {
     assetId: asset.value.id,
     maintenanceType: formData.maintenanceType,
-    operator: formData.operator,
+    maintenancePerson: formData.maintenancePerson,
     maintenanceTime: formData.maintenanceDate ? 
-      formData.maintenanceDate + ' 00:00:00' : null,
-    maintenanceCost: formData.maintenanceCost ? 
-      parseFloat(formData.maintenanceCost) : null,
+      formData.maintenanceDate + 'T00:00:00' : null,
+    cost: formData.cost ? parseFloat(formData.cost) : null,
     faultDescription: formData.faultDescription,
-    workContent: formData.workContent,
+    maintenanceContent: formData.maintenanceContent,
     solution: formData.solution,
     photos: JSON.stringify(photoUrls.value),
     spareParts: validSpareParts
@@ -688,7 +706,7 @@ function handleRetire() {
         uni.showLoading({ title: '处理中...' })
         try {
           await retireAsset(asset.value.id)
-          asset.value.status = 'retired'
+          asset.value.assetStatus = 3
           uni.showToast({ title: '退役成功', icon: 'success' })
         } catch (e) {
           uni.showToast({ title: '操作失败', icon: 'none' })
@@ -709,7 +727,7 @@ function handleScrap() {
         uni.showLoading({ title: '处理中...' })
         try {
           await scrapAsset(asset.value.id)
-          asset.value.status = 'scrapped'
+          asset.value.assetStatus = 4
           uni.showToast({ title: '报废成功', icon: 'success' })
         } catch (e) {
           uni.showToast({ title: '操作失败', icon: 'none' })
@@ -964,22 +982,22 @@ function handleScrap() {
   border-radius: 8rpx;
   font-size: 22rpx;
 
-  &.type-daily {
+  &.type-1 {
     background: #e6f7ff;
     color: #1890ff;
   }
   
-  &.type-fault {
+  &.type-2 {
     background: #fff1f0;
     color: #ff4d4f;
   }
   
-  &.type-inspection {
+  &.type-3 {
     background: #f6ffed;
     color: #52c41a;
   }
   
-  &.type-spare {
+  &.type-4 {
     background: #fff7e6;
     color: #fa8c16;
   }
@@ -1348,22 +1366,22 @@ function handleScrap() {
   border-radius: 8rpx;
   font-size: 24rpx;
 
-  &.daily {
+  &.type-1 {
     background: #e6f7ff;
     color: #1890ff;
   }
   
-  &.fault {
+  &.type-2 {
     background: #fff1f0;
     color: #ff4d4f;
   }
   
-  &.inspection {
+  &.type-3 {
     background: #f6ffed;
     color: #52c41a;
   }
   
-  &.spare {
+  &.type-4 {
     background: #fff7e6;
     color: #fa8c16;
   }

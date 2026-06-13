@@ -21,7 +21,7 @@ export function addMaintenanceWithSpareParts(data) {
 }
 
 export function getMaintenanceRecords(assetId) {
-  return get('/maintenance-records', { assetId })
+  return get(`/maintenance-records/asset/${assetId}`)
 }
 
 export function getMaintenanceDetail(id) {

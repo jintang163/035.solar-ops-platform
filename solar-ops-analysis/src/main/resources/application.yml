@@ -81,7 +81,7 @@ influxdb:
 
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml
-  type-aliases-package: com.solar.ops.analysis.entity
+  type-aliases-package: com.solar.ops.analysis.entity,com.solar.ops.admin.entity
   configuration:
     map-underscore-to-camel-case: true
     cache-enabled: false
@@ -106,3 +106,13 @@ knife4j:
 warranty:
   reminder:
     days: 30
+
+app:
+  push:
+    enabled: true
+    provider: unipush
+    app-id: 
+    app-key: 
+    app-secret: 
+    master-secret: 
+    api-url: https://restapi.getui.com/v2/
