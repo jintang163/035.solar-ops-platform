@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   Row,
   Col,
@@ -8,75 +8,161 @@ import {
   List,
   Progress,
   Space,
-  DatePicker
+  Spin
 } from 'antd'
 import { ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
 import ReactECharts from 'echarts-for-react'
 import dayjs from 'dayjs'
+import {
+  getEfficiencyRank,
+  getStationEfficiency,
+  getStationHealthList
+} from '../../api/efficiency'
+import { getStationListAll } from '../../api/station'
 
-const { RangePicker } = DatePicker
 const { Option } = Select
+
+const TIME_TYPE_MAP = { week: 2, month: 3, year: 4 }
+
+const getDateByTimeType = (timeType) => {
+  return dayjs().format('YYYY-MM-DD')
+}
+
+const getDateRangeByTimeType = (timeType) => {
+  const now = dayjs()
+  if (timeType === 'week') {
+    return { startDate: now.startOf('week').format('YYYY-MM-DD'), endDate: now.endOf('week').format('YYYY-MM-DD') }
+  }
+  if (timeType === 'month') {
+    return { startDate: now.startOf('month').format('YYYY-MM-DD'), endDate: now.endOf('month').format('YYYY-MM-DD') }
+  }
+  return { startDate: now.startOf('year').format('YYYY-MM-DD'), endDate: now.endOf('year').format('YYYY-MM-DD') }
+}
 
 const EfficiencyAnalysis = () => {
   const [timeType, setTimeType] = useState('week')
   const [selectedStation, setSelectedStation] = useState('all')
+  const [stationList, setStationList] = useState([])
+  const [prRankData, setPrRankData] = useState([])
+  const [healthValue, setHealthValue] = useState(0)
+  const [trendData, setTrendData] = useState({})
+  const [comparisonData, setComparisonData] = useState({})
+  const [loading, setLoading] = useState(false)
 
-  const prRankData = [
-    { rank: 1, name: '一号光伏电站', pr: 85.6, change: 2.3 },
-    { rank: 2, name: '二号光伏电站', pr: 83.2, change: 1.5 },
-    { rank: 3, name: '五号光伏电站', pr: 80.8, change: -0.5 },
-    { rank: 4, name: '三号光伏电站', pr: 78.5, change: 1.2 },
-    { rank: 5, name: '四号光伏电站', pr: 75.3, change: -1.8 }
-  ]
+  const fetchStationList = useCallback(async () => {
+    try {
+      const res = await getStationListAll()
+      setStationList(res.data || [])
+    } catch (e) {
+      console.error('获取电站列表失败', e)
+    }
+  }, [])
+
+  const fetchPrRank = useCallback(async (tType) => {
+    try {
+      const res = await getEfficiencyRank({
+        statisticsType: TIME_TYPE_MAP[tType],
+        date: getDateByTimeType(tType),
+        topN: 10
+      })
+      setPrRankData(res.data || [])
+    } catch (e) {
+      console.error('获取PR排名失败', e)
+    }
+  }, [])
+
+  const fetchHealth = useCallback(async () => {
+    try {
+      const stationIds = selectedStation === 'all'
+        ? stationList.map(s => s.id)
+        : [selectedStation]
+      if (stationIds.length === 0) return
+      const res = await getStationHealthList(stationIds)
+      const list = res.data || []
+      if (list.length > 0) {
+        const avg = list.reduce((sum, item) => sum + (item.healthScore || 0), 0) / list.length
+        setHealthValue(Number(avg.toFixed(1)))
+      }
+    } catch (e) {
+      console.error('获取健康度失败', e)
+    }
+  }, [selectedStation, stationList])
+
+  const fetchEfficiencyTrend = useCallback(async (tType) => {
+    try {
+      const { startDate, endDate } = getDateRangeByTimeType(tType)
+      const stationId = selectedStation === 'all' ? 0 : selectedStation
+      const res = await getStationEfficiency(stationId, {
+        statisticsType: TIME_TYPE_MAP[tType],
+        startDate,
+        endDate
+      })
+      setTrendData(res.data || {})
+    } catch (e) {
+      console.error('获取效率趋势失败', e)
+    }
+  }, [selectedStation])
+
+  const fetchComparison = useCallback(async (tType) => {
+    try {
+      const stationIds = selectedStation === 'all'
+        ? stationList.slice(0, 5).map(s => s.id)
+        : [selectedStation]
+      const { startDate, endDate } = getDateRangeByTimeType(tType)
+      const results = await Promise.all(
+        stationIds.map(id => getStationEfficiency(id, {
+          statisticsType: TIME_TYPE_MAP[tType],
+          startDate,
+          endDate
+        }))
+      )
+      setComparisonData({
+        stationIds,
+        results: results.map(r => r.data || {})
+      })
+    } catch (e) {
+      console.error('获取对比数据失败', e)
+    }
+  }, [selectedStation, stationList])
+
+  const fetchAllData = useCallback(async (tType) => {
+    setLoading(true)
+    await Promise.all([
+      fetchPrRank(tType),
+      fetchHealth(),
+      fetchEfficiencyTrend(tType),
+      fetchComparison(tType)
+    ])
+    setLoading(false)
+  }, [fetchPrRank, fetchHealth, fetchEfficiencyTrend, fetchComparison])
+
+  useEffect(() => {
+    fetchStationList()
+  }, [fetchStationList])
+
+  useEffect(() => {
+    if (stationList.length > 0) {
+      fetchAllData(timeType)
+    }
+  }, [stationList.length, timeType, selectedStation, fetchAllData])
 
   const getTrendOption = () => {
-    const xData = timeType === 'week'
-      ? ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-      : timeType === 'month'
-        ? ['第1周', '第2周', '第3周', '第4周']
-        : ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
-
-    const data1 = timeType === 'week'
-      ? [82, 85, 83, 86, 84, 87, 85]
-      : timeType === 'month'
-        ? [83, 84, 85, 86]
-        : [78, 80, 82, 84, 86, 87, 88, 87, 85, 83, 80, 78]
-
-    const data2 = timeType === 'week'
-      ? [78, 80, 82, 81, 83, 82, 84]
-      : timeType === 'month'
-        ? [80, 81, 82, 83]
-        : [75, 77, 79, 81, 82, 84, 85, 84, 82, 80, 78, 76]
+    const xData = trendData.xAxis || []
+    const currentData = trendData.current || []
+    const lastYearData = trendData.lastYear || []
 
     return {
-      tooltip: {
-        trigger: 'axis'
-      },
-      legend: {
-        data: ['系统效率PR', '去年同期']
-      },
-      grid: {
-        left: '3%',
-        right: '4%',
-        bottom: '3%',
-        containLabel: true
-      },
-      xAxis: {
-        type: 'category',
-        data: xData
-      },
-      yAxis: {
-        type: 'value',
-        name: 'PR(%)',
-        min: 70,
-        max: 95
-      },
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['系统效率PR', '去年同期'] },
+      grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+      xAxis: { type: 'category', data: xData },
+      yAxis: { type: 'value', name: 'PR(%)', min: 70, max: 95 },
       series: [
         {
           name: '系统效率PR',
           type: 'line',
           smooth: true,
-          data: data1,
+          data: currentData,
           itemStyle: { color: '#1890ff' },
           areaStyle: {
             color: {
@@ -94,7 +180,7 @@ const EfficiencyAnalysis = () => {
           type: 'line',
           smooth: true,
           lineStyle: { type: 'dashed' },
-          data: data2,
+          data: lastYearData,
           itemStyle: { color: '#8c8c8c' }
         }
       ]
@@ -105,40 +191,19 @@ const EfficiencyAnalysis = () => {
     series: [
       {
         type: 'gauge',
-        progress: {
-          show: true,
-          width: 20
-        },
-        axisLine: {
-          lineStyle: {
-            width: 20
-          }
-        },
-        axisTick: {
-          show: false
-        },
+        progress: { show: true, width: 20 },
+        axisLine: { lineStyle: { width: 20 } },
+        axisTick: { show: false },
         splitLine: {
           length: 15,
-          lineStyle: {
-            width: 2,
-            color: '#999'
-          }
+          lineStyle: { width: 2, color: '#999' }
         },
-        axisLabel: {
-          distance: 25,
-          color: '#999',
-          fontSize: 12
-        },
-        pointer: {
-          width: 6
-        },
+        axisLabel: { distance: 25, color: '#999', fontSize: 12 },
+        pointer: { width: 6 },
         anchor: {
           show: true,
           size: 20,
-          itemStyle: {
-            borderWidth: 2,
-            borderColor: '#1890ff'
-          }
+          itemStyle: { borderWidth: 2, borderColor: '#1890ff' }
         },
         title: {
           show: true,
@@ -152,66 +217,55 @@ const EfficiencyAnalysis = () => {
           offsetCenter: [0, '35%'],
           formatter: '{value}%'
         },
-        data: [
-          {
-            value: 82.5,
-            name: '系统健康度'
-          }
-        ]
+        data: [{ value: healthValue, name: '系统健康度' }]
       }
     ]
   }
 
-  const comparisonOption = {
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'shadow'
+  const getComparisonOption = () => {
+    const { stationIds: ids, results } = comparisonData
+    if (!ids || ids.length === 0) {
+      return {
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        legend: { data: ['当前', '上期', '目标'] },
+        grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+        xAxis: { type: 'category', data: [] },
+        yAxis: { type: 'value', name: '发电量(kWh)', axisLabel: { formatter: '{value}k' } },
+        series: [
+          { name: '当前', type: 'bar', data: [], itemStyle: { color: '#1890ff' }, barWidth: '20%' },
+          { name: '上期', type: 'bar', data: [], itemStyle: { color: '#8c8c8c' }, barWidth: '20%' },
+          { name: '目标', type: 'bar', data: [], itemStyle: { color: '#52c41a' }, barWidth: '20%' }
+        ]
       }
-    },
-    legend: {
-      data: ['本周', '上周', '目标']
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      data: ['一号站', '二号站', '三号站', '四号站', '五号站']
-    },
-    yAxis: {
-      type: 'value',
-      name: '发电量(kWh)',
-      axisLabel: {
-        formatter: '{value}k'
-      }
-    },
-    series: [
-      {
-        name: '本周',
-        type: 'bar',
-        data: [850, 1200, 480, 1600, 950],
-        itemStyle: { color: '#1890ff' },
-        barWidth: '20%'
-      },
-      {
-        name: '上周',
-        type: 'bar',
-        data: [820, 1150, 450, 1550, 900],
-        itemStyle: { color: '#8c8c8c' },
-        barWidth: '20%'
-      },
-      {
-        name: '目标',
-        type: 'bar',
-        data: [900, 1300, 500, 1700, 1000],
-        itemStyle: { color: '#52c41a' },
-        barWidth: '20%'
-      }
-    ]
+    }
+    const xData = ids.map(id => {
+      const station = stationList.find(s => s.id === id)
+      return station ? station.stationName : `电站${id}`
+    })
+    const currentVals = results.map(r => r.current || 0)
+    const previousVals = results.map(r => r.previous || 0)
+    const targetVals = results.map(r => r.target || 0)
+
+    return {
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      legend: { data: ['当前', '上期', '目标'] },
+      grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+      xAxis: { type: 'category', data: xData },
+      yAxis: { type: 'value', name: '发电量(kWh)', axisLabel: { formatter: '{value}k' } },
+      series: [
+        { name: '当前', type: 'bar', data: currentVals, itemStyle: { color: '#1890ff' }, barWidth: '20%' },
+        { name: '上期', type: 'bar', data: previousVals, itemStyle: { color: '#8c8c8c' }, barWidth: '20%' },
+        { name: '目标', type: 'bar', data: targetVals, itemStyle: { color: '#52c41a' }, barWidth: '20%' }
+      ]
+    }
+  }
+
+  const handleTimeTypeChange = (key) => {
+    setTimeType(key)
+  }
+
+  const handleStationChange = (value) => {
+    setSelectedStation(value)
   }
 
   return (
@@ -222,19 +276,17 @@ const EfficiencyAnalysis = () => {
           <Space>
             <Select
               value={selectedStation}
-              onChange={setSelectedStation}
+              onChange={handleStationChange}
               style={{ width: 150 }}
             >
               <Option value="all">全部电站</Option>
-              <Option value="1">一号光伏电站</Option>
-              <Option value="2">二号光伏电站</Option>
-              <Option value="3">三号光伏电站</Option>
-              <Option value="4">四号光伏电站</Option>
-              <Option value="5">五号光伏电站</Option>
+              {stationList.map(s => (
+                <Option key={s.id} value={s.id}>{s.stationName}</Option>
+              ))}
             </Select>
             <Tabs
               activeKey={timeType}
-              onChange={setTimeType}
+              onChange={handleTimeTypeChange}
               size="small"
               items={[
                 { key: 'week', label: '周' },
@@ -245,54 +297,56 @@ const EfficiencyAnalysis = () => {
           </Space>
         }
       >
-        <Row gutter={[16, 16]}>
-          <Col xs={24} lg={8}>
-            <Card title="健康度仪表盘" className="health-gauge-card">
-              <ReactECharts option={healthGaugeOption} style={{ height: 250 }} />
-            </Card>
-          </Col>
-          <Col xs={24} lg={16}>
-            <Card title="系统效率PR趋势">
-              <ReactECharts option={getTrendOption()} style={{ height: 300 }} />
-            </Card>
-          </Col>
-        </Row>
+        <Spin spinning={loading}>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={8}>
+              <Card title="健康度仪表盘" className="health-gauge-card">
+                <ReactECharts option={healthGaugeOption} style={{ height: 250 }} />
+              </Card>
+            </Col>
+            <Col xs={24} lg={16}>
+              <Card title="系统效率PR趋势">
+                <ReactECharts option={getTrendOption()} style={{ height: 300 }} />
+              </Card>
+            </Col>
+          </Row>
 
-        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-          <Col xs={24} lg={8}>
-            <Card title="PR排名">
-              <List
-                dataSource={prRankData}
-                renderItem={(item) => (
-                  <List.Item key={item.rank}>
-                    <div className="pr-rank-item">
-                      <span className={`pr-rank-num rank-${item.rank}`}>{item.rank}</span>
-                      <span className="pr-rank-name">{item.name}</span>
-                      <div className="pr-rank-right">
-                        <span className="pr-rank-value">{item.pr}%</span>
-                        <span className={`pr-rank-change ${item.change > 0 ? 'up' : 'down'}`}>
-                          {item.change > 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
-                          {Math.abs(item.change)}%
-                        </span>
+          <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+            <Col xs={24} lg={8}>
+              <Card title="PR排名">
+                <List
+                  dataSource={prRankData}
+                  renderItem={(item, index) => (
+                    <List.Item key={item.stationName || index}>
+                      <div className="pr-rank-item">
+                        <span className={`pr-rank-num rank-${index + 1}`}>{index + 1}</span>
+                        <span className="pr-rank-name">{item.stationName}</span>
+                        <div className="pr-rank-right">
+                          <span className="pr-rank-value">{item.prValue}%</span>
+                          <span className={`pr-rank-change ${item.change > 0 ? 'up' : 'down'}`}>
+                            {item.change > 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
+                            {Math.abs(item.change)}%
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                    <Progress
-                      percent={item.pr}
-                      showInfo={false}
-                      strokeColor={item.rank <= 3 ? '#52c41a' : '#1890ff'}
-                      style={{ marginTop: 8 }}
-                    />
-                  </List.Item>
-                )}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} lg={16}>
-            <Card title="发电量对比分析">
-              <ReactECharts option={comparisonOption} style={{ height: 300 }} />
-            </Card>
-          </Col>
-        </Row>
+                      <Progress
+                        percent={item.prValue}
+                        showInfo={false}
+                        strokeColor={index < 3 ? '#52c41a' : '#1890ff'}
+                        style={{ marginTop: 8 }}
+                      />
+                    </List.Item>
+                  )}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} lg={16}>
+              <Card title="发电量对比分析">
+                <ReactECharts option={getComparisonOption()} style={{ height: 300 }} />
+              </Card>
+            </Col>
+          </Row>
+        </Spin>
       </Card>
     </div>
   )

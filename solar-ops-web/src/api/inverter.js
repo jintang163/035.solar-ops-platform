@@ -2,45 +2,46 @@ import request from '../utils/request'
 
 export function getInverterList(params) {
   return request({
-    url: '/inverter/page',
+    url: '/api/inverters',
     method: 'get',
     params
+  })
+}
+
+export function getInverterListByStation(stationId) {
+  return request({
+    url: '/api/inverters/list',
+    method: 'get',
+    params: { stationId }
   })
 }
 
 export function getInverterDetail(id) {
   return request({
-    url: `/inverter/${id}`,
+    url: `/api/inverters/${id}`,
     method: 'get'
   })
 }
 
-export function getInverterRealTimeData(id) {
+export function addInverter(data) {
   return request({
-    url: `/inverter/${id}/realtime`,
-    method: 'get'
-  })
-}
-
-export function getInverterHistoryData(params) {
-  return request({
-    url: '/inverter/history',
-    method: 'get',
-    params
-  })
-}
-
-export function getInverterStatistics() {
-  return request({
-    url: '/inverter/statistics',
-    method: 'get'
-  })
-}
-
-export function controlInverter(data) {
-  return request({
-    url: '/inverter/control',
+    url: '/api/inverters',
     method: 'post',
     data
+  })
+}
+
+export function updateInverter(data) {
+  return request({
+    url: '/api/inverters',
+    method: 'put',
+    data
+  })
+}
+
+export function deleteInverter(id) {
+  return request({
+    url: `/api/inverters/${id}`,
+    method: 'delete'
   })
 }

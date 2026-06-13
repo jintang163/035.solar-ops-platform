@@ -121,7 +121,9 @@ let deviceDataWs = null
 
 export function getDeviceDataWebSocket() {
   if (!deviceDataWs) {
-    deviceDataWs = new WebSocketClient('/websocket/device/data')
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = window.location.host
+    deviceDataWs = new WebSocketClient(`${protocol}//${host}/websocket/device/data`)
   }
   return deviceDataWs
 }

@@ -1,0 +1,118 @@
+server:
+  port: 9000
+
+spring:
+  application:
+    name: solar-ops-gateway
+  redis:
+    host: localhost
+    port: 6379
+    password:
+    database: 0
+    timeout: 3000ms
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowed-origins: "*"
+            allowed-methods: "*"
+            allowed-headers: "*"
+            allow-credentials: true
+      routes:
+        - id: admin-auth
+          uri: http://localhost:8080
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=0
+
+        - id: admin-stations
+          uri: http://localhost:8080
+          predicates:
+            - Path=/api/stations/**
+          filters:
+            - AuthFilter
+            - StripPrefix=0
+
+        - id: admin-inverters
+          uri: http://localhost:8080
+          predicates:
+            - Path=/api/inverters/**
+          filters:
+            - AuthFilter
+            - StripPrefix=0
+
+        - id: admin-users
+          uri: http://localhost:8080
+          predicates:
+            - Path=/api/users/**
+          filters:
+            - AuthFilter
+            - StripPrefix=0
+
+        - id: device-data
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/device/data/**
+          filters:
+            - AuthFilter
+            - RewritePath=/api/device/data/(?<segment>.*), /device/data/$\{segment}
+
+        - id: device-realtime
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/device/realtime/**
+          filters:
+            - AuthFilter
+            - RewritePath=/api/device/realtime/(?<segment>.*), /device/data/realtime/$\{segment}
+
+        - id: device-status
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/device/status/**
+          filters:
+            - AuthFilter
+            - RewritePath=/api/device/status/(?<segment>.*), /device/data/status/$\{segment}
+
+        - id: device-online
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/device/online/**
+          filters:
+            - AuthFilter
+            - RewritePath=/api/device/online/(?<segment>.*), /device/data/online/$\{segment}
+
+        - analysis-efficiency
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/efficiency/**
+          filters:
+            - AuthFilter
+            - RewritePath=/api/efficiency/(?<segment>.*), /analysis/efficiency/$\{segment}
+
+        - analysis-health
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/health/**
+          filters:
+            - AuthFilter
+            - RewritePath=/api/health/(?<segment>.*), /analysis/health/$\{segment}
+
+        - workorder-api
+          uri: http://localhost:8083
+          predicates:
+            - Path=/api/workorder/**
+          filters:
+            - AuthFilter
+            - RewritePath=/api/workorder/(?<segment>.*), /workorder/api/workorder/$\{segment}
+
+jwt:
+  secret: solar-ops-platform-secret-key-2024
+  expiration: 86400000
+  header: Authorization
+
+logging:
+  level:
+    org.springframework.cloud.gateway: debug
+    com.solar.ops: debug

@@ -1,38 +1,37 @@
 import request from '../utils/request'
 
-export function getDeviceList(params) {
+export function getDeviceRealtimeData(deviceId) {
   return request({
-    url: '/device/page',
+    url: `/api/device/data/realtime/${deviceId}`,
+    method: 'get'
+  })
+}
+
+export function getAllDeviceRealtimeData() {
+  return request({
+    url: '/api/device/data/realtime/all',
+    method: 'get'
+  })
+}
+
+export function getDeviceHistoryData(deviceId, params) {
+  return request({
+    url: `/api/device/data/history/${deviceId}`,
     method: 'get',
     params
   })
 }
 
-export function getDeviceDetail(id) {
+export function getDeviceStatus(deviceId) {
   return request({
-    url: `/device/${id}`,
+    url: `/api/device/data/status/${deviceId}`,
     method: 'get'
   })
 }
 
-export function getDeviceRealTimeData(id) {
+export function getOnlineDeviceCount() {
   return request({
-    url: `/device/${id}/realtime`,
+    url: '/api/device/data/online/count',
     method: 'get'
-  })
-}
-
-export function getDeviceStatistics() {
-  return request({
-    url: '/device/statistics',
-    method: 'get'
-  })
-}
-
-export function getDeviceDataHistory(params) {
-  return request({
-    url: '/device/data/history',
-    method: 'get',
-    params
   })
 }

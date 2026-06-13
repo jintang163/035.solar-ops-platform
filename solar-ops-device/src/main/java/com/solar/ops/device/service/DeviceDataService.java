@@ -7,10 +7,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.apache.rocketmq.spring.core.RocketMQTemplate;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,6 +29,7 @@ public class DeviceDataService {
 
     private static final String DEVICE_ONLINE_KEY = "device:online:";
     private static final String DEVICE_LAST_DATA_KEY = "device:last:data:";
+    private static final String FAULT_ALARM_TOPIC = "fault-alarm-topic";
 
     @Autowired
     private InfluxDBService influxDBService;
@@ -37,6 +42,9 @@ public class DeviceDataService {
 
     @Autowired
     private DeviceProperties deviceProperties;
+
+    @Autowired
+    private RocketMQTemplate rocketMQTemplate;
 
     private final Map<String, InverterDataDTO> realtimeDataMap = new ConcurrentHashMap<>();
     private final Map<String, Long> deviceOnlineTimeMap = new ConcurrentHashMap<>();
@@ -150,6 +158,61 @@ public class DeviceDataService {
     private void triggerAlarm(InverterDataDTO data, List<String> reasons) {
         log.info("触发告警: deviceId={}, stationId={}, reasons={}",
                 data.getDeviceId(), data.getStationId(), reasons);
+
+        boolean hasFaultCode = data.getFaultCode() != null && data.getFaultCode() != 0;
+
+        Map<String, Object> alarmMessage = new HashMap<>();
+        alarmMessage.put("deviceId", data.getDeviceId());
+        alarmMessage.put("stationId", parseLong(data.getStationId()));
+        alarmMessage.put("inverterId", parseLong(data.getDeviceId()));
+        alarmMessage.put("reasons", reasons);
+        alarmMessage.put("timestamp", System.currentTimeMillis());
+
+        if (hasFaultCode) {
+            alarmMessage.put("faultCode", mapFaultCode(data.getFaultCode()));
+            alarmMessage.put("description", String.join("; ", reasons));
+            alarmMessage.put("alarmType", "fault_code");
+        } else {
+            alarmMessage.put("description", String.join("; ", reasons));
+            alarmMessage.put("alarmType", "data_abnormal");
+        }
+
+        try {
+            Message<String> message = MessageBuilder
+                    .withPayload(com.alibaba.fastjson.JSON.toJSONString(alarmMessage))
+                    .build();
+            rocketMQTemplate.syncSend(FAULT_ALARM_TOPIC, message);
+            log.info("告警消息已发送至RocketMQ: deviceId={}, topic={}", data.getDeviceId(), FAULT_ALARM_TOPIC);
+        } catch (Exception e) {
+            log.error("告警消息发送失败: deviceId={}, error={}", data.getDeviceId(), e.getMessage(), e);
+        }
+    }
+
+    private String mapFaultCode(Integer faultCode) {
+        switch (faultCode) {
+            case 1: return "INV_OVER_VOLT";
+            case 2: return "INV_SHORT_CIRCUIT";
+            case 3: return "INV_OVER_TEMP";
+            case 4: return "INV_NO_COMM";
+            case 5: return "INV_GRID_OFF";
+            case 6: return "INV_LOW_EFF";
+            case 7: return "STRING_NO_OUTPUT";
+            case 8: return "PANEL_HOT_SPOT";
+            case 9: return "FAN_FAILURE";
+            case 10: return "DC_INSULATION_FAULT";
+            default: return "UNKNOWN_FAULT_" + faultCode;
+        }
+    }
+
+    private Long parseLong(String value) {
+        if (value == null || value.isEmpty()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     public InverterDataDTO getRealtimeData(String deviceId) {

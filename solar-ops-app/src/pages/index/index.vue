@@ -109,7 +109,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { onPullDownRefresh } from '@dcloudio/uni-app'
 import InverterCard from '@/components/inverter-card.vue'
-import { getDashboardStats, getInverterList } from '@/api/device'
+import { getInverterList, getAllDeviceRealtimeData, getOnlineDeviceCount } from '@/api/device'
+import { getStationListAll } from '@/api/auth'
 import { formatDate } from '@/utils/format'
 
 const currentTime = ref(formatDate(new Date(), 'YYYY-MM-DD HH:mm'))
@@ -126,82 +127,97 @@ const stats = reactive({
 const inverterList = ref([])
 const powerChartData = ref([])
 const chartLabels = ref([])
+const stationMap = ref({})
 
-function initChartData() {
-  const data = []
-  const labels = []
-  for (let i = 0; i < 12; i++) {
-    data.push(Math.floor(Math.random() * 60) + 40)
-    labels.push(`${i * 2}:00`)
+async function loadStationMap() {
+  try {
+    const stations = await getStationListAll()
+    if (Array.isArray(stations)) {
+      const map = {}
+      stations.forEach(s => { map[s.id] = s.stationName || s.name || '' })
+      stationMap.value = map
+    }
+  } catch (err) {
+    console.error('获取电站列表失败:', err)
   }
-  powerChartData.value = data
-  chartLabels.value = labels
-  currentPower.value = (Math.random() * 500 + 200).toFixed(2)
+}
+
+function buildChartData(realtimeList) {
+  if (!Array.isArray(realtimeList) || !realtimeList.length) {
+    powerChartData.value = []
+    chartLabels.value = []
+    return
+  }
+  const items = realtimeList.slice(0, 12)
+  const maxPower = Math.max(...items.map(d => d.power || 0), 1)
+  powerChartData.value = items.map(d => Math.round(((d.power || 0) / maxPower) * 100))
+  chartLabels.value = items.map((d, i) => d.deviceName || d.deviceSn || `#${i + 1}`)
+  currentPower.value = realtimeList.reduce((sum, d) => sum + (d.power || 0), 0).toFixed(2)
 }
 
 async function fetchData() {
   loading.value = true
   try {
-    const [statsData, inverterData] = await Promise.all([
-      getDashboardStats(),
-      getInverterList({ pageSize: 5 })
+    const results = await Promise.allSettled([
+      getInverterList({ pageNum: 1, pageSize: 5 }),
+      getOnlineDeviceCount(),
+      getAllDeviceRealtimeData()
     ])
-    
-    if (statsData) {
-      Object.assign(stats, statsData)
+
+    const inverterRes = results[0].status === 'fulfilled' ? results[0].value : null
+    const onlineRes = results[1].status === 'fulfilled' ? results[1].value : null
+    const realtimeRes = results[2].status === 'fulfilled' ? results[2].value : null
+
+    const total = inverterRes?.total || 0
+    stats.deviceCount = total
+
+    const onlineCount = onlineRes?.onlineCount || 0
+    stats.onlineRate = total > 0 ? ((onlineCount / total) * 100).toFixed(2) : '0.00'
+
+    let totalEnergy = 0
+    let todayEnergy = 0
+    if (Array.isArray(realtimeRes)) {
+      realtimeRes.forEach(d => {
+        totalEnergy += d.totalEnergy || 0
+        todayEnergy += d.dailyEnergy || 0
+      })
     }
-    if (inverterData?.list) {
-      inverterList.value = inverterData.list
+    stats.totalEnergy = totalEnergy.toFixed(2)
+    stats.todayEnergy = todayEnergy.toFixed(2)
+
+    const realtimeMap = {}
+    if (Array.isArray(realtimeRes)) {
+      realtimeRes.forEach(d => { realtimeMap[d.deviceId] = d })
     }
+
+    if (inverterRes?.list) {
+      inverterList.value = inverterRes.list.map(item => {
+        const rt = realtimeMap[item.id] || {}
+        return {
+          id: item.id,
+          name: item.deviceName || item.deviceSn,
+          status: item.onlineStatus,
+          stationName: stationMap.value[item.stationId] || '',
+          power: rt.power || 0,
+          dailyEnergy: rt.dailyEnergy || 0,
+          totalEnergy: rt.totalEnergy || 0,
+          dcVoltage: rt.dcVoltage || 0,
+          updateTime: rt.updateTime || null
+        }
+      })
+    } else {
+      inverterList.value = []
+    }
+
+    buildChartData(realtimeRes)
   } catch (err) {
     console.error('获取数据失败:', err)
-    loadMockData()
+    inverterList.value = []
+    powerChartData.value = []
+    chartLabels.value = []
   } finally {
     loading.value = false
   }
-}
-
-function loadMockData() {
-  stats.totalEnergy = '1,256.80'
-  stats.todayEnergy = '8,523.60'
-  stats.deviceCount = 24
-  stats.onlineRate = '95.83'
-  
-  inverterList.value = [
-    {
-      id: 1,
-      name: 'INV-001',
-      status: 1,
-      stationName: '阳光光伏电站',
-      power: 125.5,
-      dailyEnergy: 1250.8,
-      totalEnergy: 156800.5,
-      dcVoltage: 580.2,
-      updateTime: new Date().getTime()
-    },
-    {
-      id: 2,
-      name: 'INV-002',
-      status: 1,
-      stationName: '阳光光伏电站',
-      power: 118.3,
-      dailyEnergy: 1180.2,
-      totalEnergy: 148520.3,
-      dcVoltage: 575.8,
-      updateTime: new Date().getTime()
-    },
-    {
-      id: 3,
-      name: 'INV-003',
-      status: 0,
-      stationName: '阳光光伏电站',
-      power: 0,
-      dailyEnergy: 0,
-      totalEnergy: 132600.0,
-      dcVoltage: 0,
-      updateTime: new Date().getTime() - 3600000
-    }
-  ]
 }
 
 function updateTime() {
@@ -217,17 +233,15 @@ function goToDetail(item) {
 }
 
 function onRefresh() {
-  fetchData()
-  initChartData()
-  setTimeout(() => {
+  loadStationMap().then(() => fetchData()).finally(() => {
     uni.stopPullDownRefresh()
     uni.showToast({ title: '刷新成功', icon: 'success' })
-  }, 1000)
+  })
 }
 
-onMounted(() => {
-  loadMockData()
-  initChartData()
+onMounted(async () => {
+  await loadStationMap()
+  await fetchData()
   setInterval(updateTime, 60000)
 })
 

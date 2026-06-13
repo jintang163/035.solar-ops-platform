@@ -1,53 +1,80 @@
 import request from '../utils/request'
 
-export function getWorkOrderList(params) {
+export function getWorkOrderPage(data) {
   return request({
-    url: '/workorder/page',
-    method: 'get',
-    params
+    url: '/api/workorder/page',
+    method: 'post',
+    data
   })
 }
 
 export function getWorkOrderDetail(id) {
   return request({
-    url: `/workorder/${id}`,
+    url: `/api/workorder/${id}`,
     method: 'get'
   })
 }
 
 export function createWorkOrder(data) {
   return request({
-    url: '/workorder',
+    url: '/api/workorder/create',
     method: 'post',
     data
   })
 }
 
-export function handleWorkOrder(data) {
+export function acceptWorkOrder(data) {
   return request({
-    url: '/workorder/handle',
+    url: '/api/workorder/accept',
     method: 'post',
     data
   })
 }
 
-export function getWorkOrderLogs(id) {
+export function assignWorkOrder(data) {
   return request({
-    url: `/workorder/${id}/logs`,
-    method: 'get'
+    url: '/api/workorder/assign',
+    method: 'post',
+    data
   })
 }
 
-export function getWorkOrderStatistics() {
+export function startProcessWorkOrder(data) {
   return request({
-    url: '/workorder/statistics',
-    method: 'get'
+    url: '/api/workorder/startProcess',
+    method: 'post',
+    data
   })
 }
 
-export function getWorkOrderStatusList() {
+export function submitCheckWorkOrder(data) {
   return request({
-    url: '/workorder/statusList',
-    method: 'get'
+    url: '/api/workorder/submitCheck',
+    method: 'post',
+    data
+  })
+}
+
+export function completeWorkOrder(data) {
+  return request({
+    url: '/api/workorder/complete',
+    method: 'post',
+    data
+  })
+}
+
+export function closeWorkOrder(data) {
+  return request({
+    url: '/api/workorder/close',
+    method: 'post',
+    data
+  })
+}
+
+export function getWorkOrderStatistics(params) {
+  return request({
+    url: '/api/workorder/statistics',
+    method: 'get',
+    params
   })
 }

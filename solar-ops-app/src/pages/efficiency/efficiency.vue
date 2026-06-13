@@ -4,112 +4,123 @@
       <view class="section-header">
         <view class="section-title">系统健康度</view>
       </view>
-      
+
       <view class="health-card">
-        <view class="gauge-container">
-          <view class="gauge">
-            <view class="gauge-bg"></view>
-            <view class="gauge-fill" :style="{ transform: `rotate(${healthScore * 1.8 - 90}deg)` }"></view>
-            <view class="gauge-center">
-              <view class="gauge-value">{{ healthScore }}</view>
-              <view class="gauge-label">健康度</view>
+        <view v-if="healthLoading" class="empty-state">加载中...</view>
+        <view v-else-if="healthScore === 0 && !healthHasData" class="empty-state">暂无数据</view>
+        <template v-else>
+          <view class="gauge-container">
+            <view class="gauge">
+              <view class="gauge-bg"></view>
+              <view class="gauge-fill" :style="{ transform: `rotate(${healthScore * 1.8 - 90}deg)` }"></view>
+              <view class="gauge-center">
+                <view class="gauge-value">{{ healthScore }}</view>
+                <view class="gauge-label">健康度</view>
+              </view>
             </view>
           </view>
-        </view>
-        
-        <view class="health-stats">
-          <view class="health-item">
-            <view class="health-dot health-dot--good"></view>
-            <text class="health-text">良好设备</text>
-            <text class="health-num">22</text>
+
+          <view class="health-stats">
+            <view class="health-item">
+              <view class="health-dot health-dot--good"></view>
+              <text class="health-text">良好设备</text>
+              <text class="health-num">{{ healthGood }}</text>
+            </view>
+            <view class="health-item">
+              <view class="health-dot health-dot--warning"></view>
+              <text class="health-text">注意设备</text>
+              <text class="health-num">{{ healthWarning }}</text>
+            </view>
+            <view class="health-item">
+              <view class="health-dot health-dot--error"></view>
+              <text class="health-text">故障设备</text>
+              <text class="health-num">{{ healthError }}</text>
+            </view>
           </view>
-          <view class="health-item">
-            <view class="health-dot health-dot--warning"></view>
-            <text class="health-text">注意设备</text>
-            <text class="health-num">2</text>
-          </view>
-          <view class="health-item">
-            <view class="health-dot health-dot--error"></view>
-            <text class="health-text">故障设备</text>
-            <text class="health-num">0</text>
-          </view>
-        </view>
+        </template>
       </view>
     </view>
-    
+
     <view class="section">
       <view class="section-header">
         <view class="section-title">发电趋势</view>
         <view class="date-selector">
-          <view 
-            v-for="item in dateOptions" 
+          <view
+            v-for="item in dateOptions"
             :key="item.value"
             class="date-item"
             :class="{ active: activeDate === item.value }"
-            @click="activeDate = item.value"
+            @click="handleDateChange(item.value)"
           >
             {{ item.label }}
           </view>
         </view>
       </view>
-      
+
       <view class="trend-card">
-        <view class="trend-chart">
-          <view class="chart-area">
-            <view class="y-axis">
-              <text v-for="(label, index) in yAxisLabels" :key="index">{{ label }}</text>
-            </view>
-            <view class="chart-body">
-              <view class="chart-grid">
-                <view v-for="i in 5" :key="i" class="grid-line"></view>
+        <view v-if="trendLoading" class="empty-state">加载中...</view>
+        <view v-else-if="trendData.length === 0" class="empty-state">暂无数据</view>
+        <template v-else>
+          <view class="trend-chart">
+            <view class="chart-area">
+              <view class="y-axis">
+                <text v-for="(label, index) in yAxisLabels" :key="index">{{ label }}</text>
               </view>
-              <view class="chart-line">
-                <view 
-                  v-for="(point, index) in trendData" 
-                  :key="index"
-                  class="chart-point"
-                  :style="{ 
-                    left: `${(index / (trendData.length - 1)) * 100}%`, 
-                    bottom: `${point / maxValue * 100}%` 
-                  }"
-                ></view>
-                <svg class="line-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-                  <polyline :points="linePoints" fill="none" stroke="#1890ff" stroke-width="2" />
-                </svg>
+              <view class="chart-body">
+                <view class="chart-grid">
+                  <view v-for="i in 5" :key="i" class="grid-line"></view>
+                </view>
+                <view class="chart-line">
+                  <view
+                    v-for="(point, index) in trendData"
+                    :key="index"
+                    class="chart-point"
+                    :style="{
+                      left: `${trendData.length > 1 ? (index / (trendData.length - 1)) * 100 : 50}%`,
+                      bottom: `${point / maxValue * 100}%`
+                    }"
+                  ></view>
+                  <svg class="line-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    <polyline :points="linePoints" fill="none" stroke="#1890ff" stroke-width="2" />
+                  </svg>
+                </view>
               </view>
             </view>
+            <view class="x-axis">
+              <text v-for="(label, index) in xAxisLabels" :key="index">{{ label }}</text>
+            </view>
           </view>
-          <view class="x-axis">
-            <text v-for="(label, index) in xAxisLabels" :key="index">{{ label }}</text>
+
+          <view class="trend-summary">
+            <view class="summary-item">
+              <view class="summary-label">总发电量</view>
+              <view class="summary-value">{{ trendSummary.total }} kWh</view>
+            </view>
+            <view class="summary-item">
+              <view class="summary-label">日均发电</view>
+              <view class="summary-value">{{ trendSummary.avg }} kWh</view>
+            </view>
+            <view class="summary-item">
+              <view class="summary-label">峰值功率</view>
+              <view class="summary-value">{{ trendSummary.max }} kW</view>
+            </view>
           </view>
-        </view>
-        
-        <view class="trend-summary">
-          <view class="summary-item">
-            <view class="summary-label">总发电量</view>
-            <view class="summary-value">{{ trendSummary.total }} kWh</view>
-          </view>
-          <view class="summary-item">
-            <view class="summary-label">日均发电</view>
-            <view class="summary-value">{{ trendSummary.avg }} kWh</view>
-          </view>
-          <view class="summary-item">
-            <view class="summary-label">峰值功率</view>
-            <view class="summary-value">{{ trendSummary.max }} kW</view>
-          </view>
-        </view>
+        </template>
       </view>
     </view>
-    
+
     <view class="section">
       <view class="section-header">
         <view class="section-title">PR排名</view>
         <view class="rank-desc">系统效率比</view>
       </view>
-      
-      <view class="rank-list">
-        <view 
-          v-for="(item, index) in prRankList" 
+
+      <view class="rank-list" v-if="rankLoading">
+        <view class="empty-state">加载中...</view>
+      </view>
+      <view class="rank-list" v-else-if="prRankList.length > 0">
+        <view
+          v-for="(item, index) in prRankList"
           :key="item.id"
           class="rank-item"
         >
@@ -125,22 +136,37 @@
           <view class="rank-value">{{ (item.pr * 100).toFixed(1) }}%</view>
         </view>
       </view>
+      <view class="rank-list" v-else>
+        <view class="empty-state">暂无数据</view>
+      </view>
     </view>
-    
+
     <view class="bottom-space"></view>
   </view>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { getHealthScore, getTrendData, getEfficiencyRank } from '@/api/efficiency'
+import { ref, computed, onMounted, watch } from 'vue'
+import { getEfficiencyRank, getStationEfficiency, getHealthAssessment, getStationHealthList } from '@/api/efficiency'
+import { getStationListAll } from '@/api/auth'
 
-const healthScore = ref(88)
+const healthScore = ref(0)
+const healthGood = ref(0)
+const healthWarning = ref(0)
+const healthError = ref(0)
+const healthHasData = ref(false)
+const healthLoading = ref(false)
+
 const activeDate = ref('week')
 const trendData = ref([])
 const xAxisLabels = ref([])
-const yAxisLabels = ref(['1000', '800', '600', '400', '200', '0'])
+const yAxisLabels = ref([])
+const trendLoading = ref(false)
+
 const prRankList = ref([])
+const rankLoading = ref(false)
+
+const stationIds = ref([])
 
 const dateOptions = [
   { label: '日', value: 'day' },
@@ -149,13 +175,78 @@ const dateOptions = [
   { label: '年', value: 'year' }
 ]
 
+const statisticsTypeMap = { day: 1, week: 2, month: 3, year: 4 }
+
+function formatDate(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function getDateRange() {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = now.getMonth()
+  const d = now.getDate()
+
+  switch (activeDate.value) {
+    case 'day':
+      return { startDate: formatDate(now), endDate: formatDate(now) }
+    case 'week': {
+      const dayOfWeek = now.getDay() || 7
+      const start = new Date(y, m, d - dayOfWeek + 1)
+      const end = new Date(y, m, d - dayOfWeek + 7)
+      return { startDate: formatDate(start), endDate: formatDate(end) }
+    }
+    case 'month': {
+      const start = new Date(y, m, 1)
+      const end = new Date(y, m + 1, 0)
+      return { startDate: formatDate(start), endDate: formatDate(end) }
+    }
+    case 'year':
+      return { startDate: `${y}-01-01`, endDate: `${y}-12-31` }
+  }
+}
+
+function formatXLabel(dateStr) {
+  if (!dateStr) return ''
+  const parts = dateStr.split('-')
+  switch (activeDate.value) {
+    case 'day':
+      return parts.length >= 3 ? `${parseInt(parts[1])}/${parseInt(parts[2])}` : dateStr
+    case 'week':
+      return parts.length >= 3 ? `${parseInt(parts[1])}/${parseInt(parts[2])}` : dateStr
+    case 'month':
+      return parts.length >= 3 ? `${parseInt(parts[2])}日` : dateStr
+    case 'year':
+      return parts.length >= 2 ? `${parseInt(parts[1])}月` : dateStr
+    default:
+      return dateStr
+  }
+}
+
+function computeYAxisLabels(max) {
+  if (max <= 0) return ['0', '0', '0', '0', '0', '0']
+  const step = Math.ceil(max / 5)
+  const top = step * 5
+  const labels = []
+  for (let i = 5; i >= 0; i--) {
+    labels.push(String(step * i))
+  }
+  return labels
+}
+
 const maxValue = computed(() => {
   return Math.max(...trendData.value, 1)
 })
 
 const linePoints = computed(() => {
+  if (trendData.value.length === 0) return ''
   const points = trendData.value.map((point, index) => {
-    const x = (index / (trendData.value.length - 1)) * 100
+    const x = trendData.value.length > 1
+      ? (index / (trendData.value.length - 1)) * 100
+      : 50
     const y = 100 - (point / maxValue.value) * 100
     return `${x},${y}`
   })
@@ -163,6 +254,9 @@ const linePoints = computed(() => {
 })
 
 const trendSummary = computed(() => {
+  if (trendData.value.length === 0) {
+    return { total: '0', avg: '0', max: '0' }
+  }
   const total = trendData.value.reduce((sum, val) => sum + val, 0)
   const avg = total / trendData.value.length
   const max = Math.max(...trendData.value)
@@ -173,48 +267,111 @@ const trendSummary = computed(() => {
   }
 })
 
-function initTrendData() {
-  const data = []
-  const labels = []
-  for (let i = 0; i < 7; i++) {
-    data.push(Math.floor(Math.random() * 500) + 300)
-    labels.push(`周${'日一二三四五六'[i]}`)
-  }
-  trendData.value = data
-  xAxisLabels.value = labels
-}
-
-function initRankData() {
-  prRankList.value = [
-    { id: 1, name: 'INV-001', pr: 0.92 },
-    { id: 2, name: 'INV-002', pr: 0.89 },
-    { id: 3, name: 'INV-005', pr: 0.87 },
-    { id: 4, name: 'INV-003', pr: 0.85 },
-    { id: 5, name: 'INV-004', pr: 0.82 },
-    { id: 6, name: 'INV-006', pr: 0.78 }
-  ]
-}
-
-async function fetchData() {
+async function fetchStationList() {
   try {
-    const [health, trend, rank] = await Promise.all([
-      getHealthScore(1),
-      getTrendData({ type: activeDate.value }),
-      getEfficiencyRank()
-    ])
-    
-    if (health) healthScore.value = health.score || 88
-    if (trend?.data) trendData.value = trend.data
-    if (rank?.list) prRankList.value = rank.list
+    const res = await getStationListAll()
+    const list = Array.isArray(res) ? res : (res?.data || [])
+    stationIds.value = list.map(s => s.stationId || s.id).filter(Boolean)
   } catch (err) {
-    console.error('获取效率数据失败:', err)
+    console.error('获取电站列表失败:', err)
+    stationIds.value = []
   }
 }
 
-onMounted(() => {
-  initTrendData()
-  initRankData()
-  fetchData()
+async function fetchHealthData() {
+  if (stationIds.value.length === 0) return
+  healthLoading.value = true
+  try {
+    const res = await getStationHealthList(stationIds.value)
+    const list = Array.isArray(res) ? res : (res?.data || [])
+    if (list.length > 0) {
+      healthHasData.value = true
+      const totalScore = list.reduce((sum, item) => sum + (item.efficiencyScore || 0), 0)
+      healthScore.value = Math.round(totalScore / list.length)
+      healthGood.value = list.filter(item => item.healthLevel === 1).length
+      healthWarning.value = list.filter(item => item.healthLevel === 2).length
+      healthError.value = list.filter(item => item.healthLevel === 3).length
+    } else {
+      healthHasData.value = false
+      healthScore.value = 0
+      healthGood.value = 0
+      healthWarning.value = 0
+      healthError.value = 0
+    }
+  } catch (err) {
+    console.error('获取健康度数据失败:', err)
+    healthHasData.value = false
+    healthScore.value = 0
+    healthGood.value = 0
+    healthWarning.value = 0
+    healthError.value = 0
+  } finally {
+    healthLoading.value = false
+  }
+}
+
+async function fetchTrendData() {
+  if (stationIds.value.length === 0) return
+  trendLoading.value = true
+  try {
+    const stationId = stationIds.value[0]
+    const { startDate, endDate } = getDateRange()
+    const statisticsType = statisticsTypeMap[activeDate.value]
+    const res = await getStationEfficiency(stationId, { statisticsType, startDate, endDate })
+    const list = Array.isArray(res) ? res : (res?.data || [])
+    if (list.length > 0) {
+      trendData.value = list.map(item => item.totalEnergy || 0)
+      xAxisLabels.value = list.map(item => formatXLabel(item.statisticsDate))
+      yAxisLabels.value = computeYAxisLabels(Math.max(...trendData.value))
+    } else {
+      trendData.value = []
+      xAxisLabels.value = []
+      yAxisLabels.value = []
+    }
+  } catch (err) {
+    console.error('获取发电趋势失败:', err)
+    trendData.value = []
+    xAxisLabels.value = []
+    yAxisLabels.value = []
+  } finally {
+    trendLoading.value = false
+  }
+}
+
+async function fetchRankData() {
+  rankLoading.value = true
+  try {
+    const statisticsType = statisticsTypeMap[activeDate.value]
+    const { startDate } = getDateRange()
+    const res = await getEfficiencyRank({ statisticsType, date: startDate, topN: 10 })
+    const list = Array.isArray(res) ? res : (res?.data || [])
+    prRankList.value = list.map((item, index) => ({
+      id: index + 1,
+      name: item.stationName || '',
+      pr: (item.prValue || 0) / 100
+    }))
+  } catch (err) {
+    console.error('获取PR排名失败:', err)
+    prRankList.value = []
+  } finally {
+    rankLoading.value = false
+  }
+}
+
+function handleDateChange(value) {
+  activeDate.value = value
+}
+
+watch(activeDate, () => {
+  fetchTrendData()
+  fetchRankData()
+})
+
+onMounted(async () => {
+  await fetchStationList()
+  fetchHealthData()
+  fetchTrendData()
+  fetchRankData()
 })
 </script>
 
@@ -242,7 +399,7 @@ onMounted(() => {
   color: #333;
   position: relative;
   padding-left: 20rpx;
-  
+
   &::before {
     content: '';
     position: absolute;
@@ -268,7 +425,7 @@ onMounted(() => {
   font-size: 24rpx;
   color: #666;
   border-radius: 6rpx;
-  
+
   &.active {
     background-color: #1890ff;
     color: #ffffff;
@@ -360,15 +517,15 @@ onMounted(() => {
   height: 16rpx;
   border-radius: 50%;
   margin-bottom: 12rpx;
-  
+
   &--good {
     background-color: #52c41a;
   }
-  
+
   &--warning {
     background-color: #faad14;
   }
-  
+
   &--error {
     background-color: #ff4d4f;
   }
@@ -409,7 +566,7 @@ onMounted(() => {
   justify-content: space-between;
   width: 80rpx;
   padding-right: 16rpx;
-  
+
   text {
     font-size: 20rpx;
     color: #999;
@@ -470,7 +627,7 @@ onMounted(() => {
   justify-content: space-between;
   margin-top: 12rpx;
   padding-left: 80rpx;
-  
+
   text {
     font-size: 20rpx;
     color: #999;
@@ -517,7 +674,7 @@ onMounted(() => {
   align-items: center;
   padding: 24rpx 0;
   border-bottom: 1rpx solid #f0f0f0;
-  
+
   &:last-child {
     border-bottom: none;
   }
@@ -535,15 +692,15 @@ onMounted(() => {
   border-radius: 8rpx;
   margin-right: 20rpx;
   flex-shrink: 0;
-  
+
   &--1 {
     background-color: #ffd700;
   }
-  
+
   &--2 {
     background-color: #c0c0c0;
   }
-  
+
   &--3 {
     background-color: #cd7f32;
   }
@@ -578,6 +735,13 @@ onMounted(() => {
   font-weight: 600;
   color: #1890ff;
   flex-shrink: 0;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60rpx 0;
+  font-size: 28rpx;
+  color: #999;
 }
 
 .bottom-space {

@@ -3,7 +3,7 @@ import { message } from 'antd'
 import { getToken, clearAuth } from './auth'
 
 const request = axios.create({
-  baseURL: '/api',
+  baseURL: '',
   timeout: 30000
 })
 

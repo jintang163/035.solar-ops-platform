@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   Table,
   Button,
@@ -6,13 +6,11 @@ import {
   Modal,
   Form,
   Input,
-  Select,
   message,
   Card,
   Tag,
   Tabs,
   Descriptions,
-  Timeline,
   Row,
   Col,
   Statistic,
@@ -24,143 +22,307 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   ClockCircleOutlined,
-  WarningOutlined
+  WarningOutlined,
+  ThunderboltOutlined,
+  SafetyCertificateOutlined
 } from '@ant-design/icons'
-import StatusTag from '../../components/StatusTag'
+import {
+  getWorkOrderPage,
+  getWorkOrderDetail,
+  createWorkOrder,
+  acceptWorkOrder,
+  startProcessWorkOrder,
+  submitCheckWorkOrder,
+  completeWorkOrder,
+  closeWorkOrder,
+  getWorkOrderStatistics
+} from '../../api/workorder'
+import { getUser } from '../../utils/auth'
 
 const { TextArea } = Input
-const { Option } = Select
+
+const STATUS_MAP = {
+  0: { color: 'orange', text: '待接单' },
+  1: { color: 'blue', text: '已接单' },
+  2: { color: 'processing', text: '处理中' },
+  3: { color: 'purple', text: '待验收' },
+  4: { color: 'green', text: '已完成' },
+  5: { color: 'default', text: '已关闭' }
+}
+
+const FAULT_LEVEL_MAP = {
+  1: { color: 'green', text: '低级' },
+  2: { color: 'orange', text: '中级' },
+  3: { color: 'red', text: '高级' },
+  4: { color: '#cf1322', text: '紧急' }
+}
+
+const PAGE_SIZE = 10
 
 const WorkOrderList = () => {
-  const [data, setData] = useState([
-    { id: 'WO20240101001', title: '一号电站逆变器故障', type: 'fault', level: 'high', station: '一号光伏电站', device: 'INV-003', status: 'pending', creator: '张三', createTime: '2024-01-15 09:30:00', description: '逆变器突然停机，无输出功率' },
-    { id: 'WO20240102002', title: '二号电站日常巡检', type: 'inspection', level: 'low', station: '二号光伏电站', device: '-', status: 'processing', creator: '李四', createTime: '2024-01-16 08:00:00', description: '按计划进行日常巡检维护' },
-    { id: 'WO20240103003', title: '三号电站组件清洗', type: 'maintenance', level: 'medium', station: '三号光伏电站', device: '-', status: 'processing', creator: '王五', createTime: '2024-01-16 10:00:00', description: '光伏组件表面积灰严重，需要清洗' },
-    { id: 'WO20240104004', title: '四号电站通讯故障', type: 'fault', level: 'medium', station: '四号光伏电站', device: 'INV-007', status: 'completed', creator: '赵六', createTime: '2024-01-14 14:20:00', description: '设备通讯中断，数据无法上传' },
-    { id: 'WO20240105005', title: '五号电站温度告警', type: 'warning', level: 'low', station: '五号光伏电站', device: 'INV-006', status: 'closed', creator: '系统', createTime: '2024-01-13 16:45:00', description: '逆变器温度过高，触发告警' }
-  ])
+  const [data, setData] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [total, setTotal] = useState(0)
+  const [pageNum, setPageNum] = useState(1)
+  const [activeTab, setActiveTab] = useState('all')
+  const [statistics, setStatistics] = useState({ 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 })
   const [detailVisible, setDetailVisible] = useState(false)
   const [addVisible, setAddVisible] = useState(false)
+  const [actionVisible, setActionVisible] = useState(false)
   const [currentOrder, setCurrentOrder] = useState(null)
-  const [activeTab, setActiveTab] = useState('all')
-  const [form] = Form.useForm()
+  const [actionType, setActionType] = useState('')
+  const [actionLoading, setActionLoading] = useState(false)
+  const [addLoading, setAddLoading] = useState(false)
+  const [addForm] = Form.useForm()
+  const [actionForm] = Form.useForm()
 
-  const workOrderLogs = [
-    { time: '2024-01-15 09:30:00', user: '系统', action: '创建工单', description: '逆变器故障自动触发工单' },
-    { time: '2024-01-15 09:35:00', user: '张三', action: '受理工单', description: '已收到工单，准备前往现场' },
-    { time: '2024-01-15 10:00:00', user: '张三', action: '现场检查', description: '到达现场，开始检查设备' },
-    { time: '2024-01-15 11:30:00', user: '张三', action: '故障定位', description: '确认IGBT模块损坏，需更换' }
-  ]
+  const fetchStatistics = useCallback(async () => {
+    try {
+      const res = await getWorkOrderStatistics()
+      setStatistics(res.data || {})
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const fetchData = useCallback(async (status, page = 1) => {
+    setLoading(true)
+    try {
+      const params = { pageNum: page, pageSize: PAGE_SIZE }
+      if (status !== 'all') {
+        params.status = Number(status)
+      }
+      const res = await getWorkOrderPage(params)
+      const pageResult = res.data || {}
+      setData(pageResult.list || [])
+      setTotal(pageResult.total || 0)
+      setPageNum(pageResult.pageNum || page)
+    } catch {
+      setData([])
+      setTotal(0)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchStatistics()
+  }, [fetchStatistics])
+
+  useEffect(() => {
+    fetchData(activeTab, 1)
+  }, [activeTab, fetchData])
+
+  const handleTabChange = (key) => {
+    setActiveTab(key)
+  }
+
+  const handlePageChange = (page) => {
+    fetchData(activeTab, page)
+  }
+
+  const handleViewDetail = async (record) => {
+    try {
+      const res = await getWorkOrderDetail(record.id)
+      setCurrentOrder(res.data || record)
+      setDetailVisible(true)
+    } catch {
+      setCurrentOrder(record)
+      setDetailVisible(true)
+    }
+  }
+
+  const getCurrentUser = () => {
+    const user = getUser() || {}
+    return { operatorId: user.id, operatorName: user.name || user.username || '' }
+  }
+
+  const handleAction = (record, type) => {
+    setCurrentOrder(record)
+    setActionType(type)
+    actionForm.resetFields()
+    setActionVisible(true)
+  }
+
+  const handleActionOk = async () => {
+    try {
+      const values = await actionForm.validateFields()
+      const user = getCurrentUser()
+      const baseParams = { orderId: currentOrder.id, ...user }
+      setActionLoading(true)
+
+      if (actionType === 'accept') {
+        await acceptWorkOrder(baseParams)
+      } else if (actionType === 'startProcess') {
+        await startProcessWorkOrder({ ...baseParams, solution: values.solution })
+      } else if (actionType === 'submitCheck') {
+        await submitCheckWorkOrder({
+          ...baseParams,
+          solution: values.solution,
+          repairPhotos: values.repairPhotos || ''
+        })
+      } else if (actionType === 'complete') {
+        await completeWorkOrder(baseParams)
+      } else if (actionType === 'close') {
+        await closeWorkOrder(baseParams)
+      }
+
+      message.success('操作成功')
+      setActionVisible(false)
+      fetchData(activeTab, pageNum)
+      fetchStatistics()
+    } catch (error) {
+      if (error.errorFields) return
+      message.error(error.message || '操作失败')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleAdd = () => {
+    addForm.resetFields()
+    setAddVisible(true)
+  }
+
+  const handleAddOk = async () => {
+    try {
+      const values = await addForm.validateFields()
+      setAddLoading(true)
+      await createWorkOrder(values)
+      message.success('工单创建成功')
+      setAddVisible(false)
+      fetchData(activeTab, 1)
+      fetchStatistics()
+    } catch (error) {
+      if (error.errorFields) return
+      message.error(error.message || '创建失败')
+    } finally {
+      setAddLoading(false)
+    }
+  }
+
+  const handleConfirmAction = (record, type, actionLabel) => {
+    Modal.confirm({
+      title: '确认操作',
+      content: `确定对工单 ${record.orderNo} 执行「${actionLabel}」操作？`,
+      onOk: async () => {
+        const user = getCurrentUser()
+        const baseParams = { orderId: record.id, ...user }
+        try {
+          if (type === 'accept') {
+            await acceptWorkOrder(baseParams)
+          } else if (type === 'complete') {
+            await completeWorkOrder(baseParams)
+          } else if (type === 'close') {
+            await closeWorkOrder(baseParams)
+          }
+          message.success('操作成功')
+          fetchData(activeTab, pageNum)
+          fetchStatistics()
+        } catch (error) {
+          message.error(error.message || '操作失败')
+        }
+      }
+    })
+  }
+
+  const getActionLabel = (type) => {
+    const map = { accept: '接单', startProcess: '开始处理', submitCheck: '提交验收', complete: '完成', close: '关闭' }
+    return map[type] || type
+  }
 
   const columns = [
     {
       title: '工单编号',
-      dataIndex: 'id',
-      key: 'id',
-      width: 140,
-      render: (text) => <a>{text}</a>
+      dataIndex: 'orderNo',
+      key: 'orderNo',
+      width: 150,
+      render: (text, record) => <a onClick={() => handleViewDetail(record)}>{text}</a>
     },
     {
-      title: '标题',
-      dataIndex: 'title',
-      key: 'title',
-      width: 200,
+      title: '故障名称',
+      dataIndex: 'faultName',
+      key: 'faultName',
+      width: 180,
       ellipsis: true
     },
     {
-      title: '类型',
-      dataIndex: 'type',
-      key: 'type',
+      title: '故障等级',
+      dataIndex: 'faultLevel',
+      key: 'faultLevel',
       width: 100,
-      render: (type) => {
-        const typeMap = {
-          fault: { color: 'red', text: '故障' },
-          inspection: { color: 'blue', text: '巡检' },
-          maintenance: { color: 'green', text: '维护' },
-          warning: { color: 'orange', text: '告警' }
-        }
-        const info = typeMap[type] || { color: 'default', text: type }
+      render: (level) => {
+        const info = FAULT_LEVEL_MAP[level] || { color: 'default', text: level }
         return <Tag color={info.color}>{info.text}</Tag>
       }
     },
     {
-      title: '优先级',
-      dataIndex: 'level',
-      key: 'level',
-      width: 100,
-      render: (level) => {
-        const levelMap = {
-          high: { color: 'red', text: '高', icon: <WarningOutlined /> },
-          medium: { color: 'orange', text: '中' },
-          low: { color: 'green', text: '低' }
-        }
-        const info = levelMap[level] || { color: 'default', text: level }
-        return <Tag color={info.color}>{info.icon}{info.text}</Tag>
-      }
+      title: '所属电站',
+      dataIndex: 'stationName',
+      key: 'stationName',
+      width: 140
     },
     {
-      title: '所属电站',
-      dataIndex: 'station',
-      key: 'station',
-      width: 130
+      title: '逆变器',
+      dataIndex: 'inverterName',
+      key: 'inverterName',
+      width: 120
     },
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
       width: 100,
-      render: (status) => <StatusTag status={status} />
+      render: (status) => {
+        const info = STATUS_MAP[status] || { color: 'default', text: status }
+        return <Tag color={info.color}>{info.text}</Tag>
+      }
     },
     {
-      title: '创建人',
-      dataIndex: 'creator',
-      key: 'creator',
-      width: 80
+      title: '处理人',
+      dataIndex: 'handlerName',
+      key: 'handlerName',
+      width: 100,
+      render: (text) => text || '-'
     },
     {
       title: '创建时间',
       dataIndex: 'createTime',
       key: 'createTime',
-      width: 160
+      width: 170
     },
     {
       title: '操作',
       key: 'action',
       width: 200,
+      fixed: 'right',
       render: (_, record) => (
         <Space>
-          <Button
-            type="link"
-            size="small"
-            icon={<EyeOutlined />}
-            onClick={() => handleViewDetail(record)}
-          >
+          <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => handleViewDetail(record)}>
             详情
           </Button>
-          {record.status === 'pending' && (
-            <Button
-              type="link"
-              size="small"
-              onClick={() => handleStatusChange(record, 'processing')}
-            >
-              受理
+          {record.status === 0 && (
+            <Button type="link" size="small" onClick={() => handleConfirmAction(record, 'accept', '接单')}>
+              接单
             </Button>
           )}
-          {record.status === 'processing' && (
-            <Button
-              type="link"
-              size="small"
-              onClick={() => handleStatusChange(record, 'completed')}
-            >
+          {record.status === 1 && (
+            <Button type="link" size="small" onClick={() => handleAction(record, 'startProcess')}>
+              处理
+            </Button>
+          )}
+          {record.status === 2 && (
+            <Button type="link" size="small" onClick={() => handleAction(record, 'submitCheck')}>
+              提交验收
+            </Button>
+          )}
+          {record.status === 3 && (
+            <Button type="link" size="small" onClick={() => handleConfirmAction(record, 'complete', '完成')}>
               完成
             </Button>
           )}
-          {record.status === 'completed' && (
-            <Button
-              type="link"
-              size="small"
-              onClick={() => handleStatusChange(record, 'closed')}
-            >
+          {[0, 1, 2, 3].includes(record.status) && (
+            <Button type="link" size="small" danger onClick={() => handleConfirmAction(record, 'close', '关闭')}>
               关闭
             </Button>
           )}
@@ -169,65 +331,52 @@ const WorkOrderList = () => {
     }
   ]
 
-  const handleViewDetail = (record) => {
-    setCurrentOrder(record)
-    setDetailVisible(true)
-  }
-
-  const handleStatusChange = (record, newStatus) => {
-    Modal.confirm({
-      title: '确认操作',
-      content: `确定将工单 ${record.id} 状态变更为：${newStatus === 'processing' ? '处理中' : newStatus === 'completed' ? '已完成' : '已关闭'}？`,
-      onOk: () => {
-        setData(prev => prev.map(item =>
-          item.id === record.id ? { ...item, status: newStatus } : item
-        ))
-        message.success('操作成功')
-      }
-    })
-  }
-
-  const handleAdd = () => {
-    form.resetFields()
-    setAddVisible(true)
-  }
-
-  const handleAddOk = async () => {
-    try {
-      const values = await form.validateFields()
-      const newOrder = {
-        ...values,
-        id: `WO${Date.now()}`,
-        status: 'pending',
-        creator: '当前用户',
-        createTime: new Date().toLocaleString()
-      }
-      setData(prev => [newOrder, ...prev])
-      setAddVisible(false)
-      message.success('工单创建成功')
-    } catch (error) {
-      console.error('表单验证失败:', error)
-    }
-  }
-
-  const filteredData = activeTab === 'all'
-    ? data
-    : data.filter(item => item.status === activeTab)
-
-  const statistics = {
-    total: data.length,
-    pending: data.filter(i => i.status === 'pending').length,
-    processing: data.filter(i => i.status === 'processing').length,
-    completed: data.filter(i => i.status === 'completed').length
-  }
+  const statTotal = Object.values(statistics).reduce((a, b) => a + (Number(b) || 0), 0)
 
   const tabItems = [
-    { key: 'all', label: `全部 (${statistics.total})` },
-    { key: 'pending', label: `待处理 (${statistics.pending})` },
-    { key: 'processing', label: `处理中 (${statistics.processing})` },
-    { key: 'completed', label: `已完成 (${statistics.completed})` },
-    { key: 'closed', label: `已关闭 (${data.filter(i => i.status === 'closed').length})` }
+    { key: 'all', label: `全部 (${statTotal})` },
+    { key: '0', label: `待接单 (${statistics[0] || 0})` },
+    { key: '1', label: `已接单 (${statistics[1] || 0})` },
+    { key: '2', label: `处理中 (${statistics[2] || 0})` },
+    { key: '3', label: `待验收 (${statistics[3] || 0})` },
+    { key: '4', label: `已完成 (${statistics[4] || 0})` },
+    { key: '5', label: `已关闭 (${statistics[5] || 0})` }
   ]
+
+  const renderActionModal = () => {
+    const showSolution = actionType === 'startProcess' || actionType === 'submitCheck'
+    const showPhotos = actionType === 'submitCheck'
+
+    return (
+      <Modal
+        title={getActionLabel(actionType)}
+        open={actionVisible}
+        onOk={handleActionOk}
+        onCancel={() => setActionVisible(false)}
+        confirmLoading={actionLoading}
+        okText="确认"
+        cancelText="取消"
+        width={500}
+      >
+        <Form form={actionForm} layout="vertical">
+          {showSolution && (
+            <Form.Item
+              name="solution"
+              label="处理方案"
+              rules={[{ required: true, message: '请输入处理方案' }]}
+            >
+              <TextArea rows={4} placeholder="请详细描述处理方案" />
+            </Form.Item>
+          )}
+          {showPhotos && (
+            <Form.Item name="repairPhotos" label="维修照片">
+              <Input placeholder="请输入照片URL，多个用逗号分隔" />
+            </Form.Item>
+          )}
+        </Form>
+      </Modal>
+    )
+  }
 
   return (
     <div className="workorder-list-page">
@@ -240,56 +389,84 @@ const WorkOrderList = () => {
         }
       >
         <Row gutter={16} style={{ marginBottom: 16 }}>
-          <Col xs={12} sm={6}>
+          <Col xs={12} sm={6} md={4}>
             <Card size="small">
               <Statistic
                 title="全部工单"
-                value={statistics.total}
+                value={statTotal}
                 prefix={<ClockCircleOutlined />}
                 valueStyle={{ fontSize: 20 }}
               />
             </Card>
           </Col>
-          <Col xs={12} sm={6}>
+          <Col xs={12} sm={6} md={4}>
             <Card size="small">
               <Statistic
-                title="待处理"
-                value={statistics.pending}
+                title="待接单"
+                value={statistics[0] || 0}
                 valueStyle={{ color: '#faad14', fontSize: 20 }}
                 prefix={<WarningOutlined />}
               />
             </Card>
           </Col>
-          <Col xs={12} sm={6}>
+          <Col xs={12} sm={6} md={4}>
             <Card size="small">
               <Statistic
                 title="处理中"
-                value={statistics.processing}
+                value={statistics[2] || 0}
                 valueStyle={{ color: '#1890ff', fontSize: 20 }}
-                prefix={<ClockCircleOutlined />}
+                prefix={<ThunderboltOutlined />}
               />
             </Card>
           </Col>
-          <Col xs={12} sm={6}>
+          <Col xs={12} sm={6} md={4}>
+            <Card size="small">
+              <Statistic
+                title="待验收"
+                value={statistics[3] || 0}
+                valueStyle={{ color: '#722ed1', fontSize: 20 }}
+                prefix={<SafetyCertificateOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col xs={12} sm={6} md={4}>
             <Card size="small">
               <Statistic
                 title="已完成"
-                value={statistics.completed}
+                value={statistics[4] || 0}
                 valueStyle={{ color: '#52c41a', fontSize: 20 }}
                 prefix={<CheckCircleOutlined />}
               />
             </Card>
           </Col>
+          <Col xs={12} sm={6} md={4}>
+            <Card size="small">
+              <Statistic
+                title="已关闭"
+                value={statistics[5] || 0}
+                valueStyle={{ color: '#999', fontSize: 20 }}
+                prefix={<CloseCircleOutlined />}
+              />
+            </Card>
+          </Col>
         </Row>
 
-        <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
+        <Tabs activeKey={activeTab} onChange={handleTabChange} items={tabItems} />
 
         <Table
           columns={columns}
-          dataSource={filteredData}
+          dataSource={data}
           rowKey="id"
-          pagination={{ pageSize: 10 }}
-          scroll={{ x: 1100 }}
+          loading={loading}
+          scroll={{ x: 1300 }}
+          pagination={{
+            current: pageNum,
+            pageSize: PAGE_SIZE,
+            total,
+            showTotal: (t) => `共 ${t} 条`,
+            showSizeChanger: false,
+            onChange: handlePageChange
+          }}
         />
       </Card>
 
@@ -301,107 +478,64 @@ const WorkOrderList = () => {
         width={700}
       >
         {currentOrder && (
-          <div className="workorder-detail">
-            <Descriptions title="基本信息" bordered column={2} size="small">
-              <Descriptions.Item label="工单编号">{currentOrder.id}</Descriptions.Item>
-              <Descriptions.Item label="状态">
-                <StatusTag status={currentOrder.status} />
-              </Descriptions.Item>
-              <Descriptions.Item label="标题" span={2}>{currentOrder.title}</Descriptions.Item>
-              <Descriptions.Item label="类型">
-                <Tag>{currentOrder.type}</Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="优先级">
-                <Tag color={currentOrder.level === 'high' ? 'red' : currentOrder.level === 'medium' ? 'orange' : 'green'}>
-                  {currentOrder.level}
-                </Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="所属电站">{currentOrder.station}</Descriptions.Item>
-              <Descriptions.Item label="关联设备">{currentOrder.device}</Descriptions.Item>
-              <Descriptions.Item label="创建人">{currentOrder.creator}</Descriptions.Item>
-              <Descriptions.Item label="创建时间">{currentOrder.createTime}</Descriptions.Item>
-              <Descriptions.Item label="问题描述" span={2}>
-                {currentOrder.description}
-              </Descriptions.Item>
-            </Descriptions>
-
-            <div style={{ marginTop: 24 }}>
-              <h4>处理记录</h4>
-              <Timeline
-                items={workOrderLogs.map(log => ({
-                  color: 'blue',
-                  children: (
-                    <div>
-                      <p style={{ margin: 0, fontWeight: 500 }}>{log.action}</p>
-                      <p style={{ margin: '4px 0', color: '#666', fontSize: 12 }}>{log.user} · {log.time}</p>
-                      <p style={{ margin: 0 }}>{log.description}</p>
-                    </div>
-                  )
-                }))}
-              />
-            </div>
-          </div>
+          <Descriptions title="基本信息" bordered column={2} size="small">
+            <Descriptions.Item label="工单编号">{currentOrder.orderNo}</Descriptions.Item>
+            <Descriptions.Item label="状态">
+              <Tag color={(STATUS_MAP[currentOrder.status] || {}).color}>
+                {(STATUS_MAP[currentOrder.status] || {}).text || currentOrder.status}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="故障名称" span={2}>{currentOrder.faultName}</Descriptions.Item>
+            <Descriptions.Item label="故障代码">{currentOrder.faultCode || '-'}</Descriptions.Item>
+            <Descriptions.Item label="故障等级">
+              <Tag color={(FAULT_LEVEL_MAP[currentOrder.faultLevel] || {}).color}>
+                {(FAULT_LEVEL_MAP[currentOrder.faultLevel] || {}).text || currentOrder.faultLevel}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="所属电站">{currentOrder.stationName || '-'}</Descriptions.Item>
+            <Descriptions.Item label="逆变器">{currentOrder.inverterName || '-'}</Descriptions.Item>
+            <Descriptions.Item label="处理人">{currentOrder.handlerName || '-'}</Descriptions.Item>
+            <Descriptions.Item label="创建时间">{currentOrder.createTime || '-'}</Descriptions.Item>
+            <Descriptions.Item label="问题描述" span={2}>{currentOrder.description || '-'}</Descriptions.Item>
+            {currentOrder.solution && (
+              <Descriptions.Item label="处理方案" span={2}>{currentOrder.solution}</Descriptions.Item>
+            )}
+          </Descriptions>
         )}
       </Modal>
+
+      {renderActionModal()}
 
       <Modal
         title="新建工单"
         open={addVisible}
         onOk={handleAddOk}
         onCancel={() => setAddVisible(false)}
+        confirmLoading={addLoading}
         okText="提交"
         cancelText="取消"
         width={500}
       >
-        <Form form={form} layout="vertical">
+        <Form form={addForm} layout="vertical">
           <Form.Item
-            name="title"
-            label="工单标题"
-            rules={[{ required: true, message: '请输入工单标题' }]}
+            name="stationId"
+            label="电站ID"
+            rules={[{ required: true, message: '请输入电站ID' }]}
           >
-            <Input placeholder="请输入工单标题" />
+            <InputNumber placeholder="请输入电站ID" style={{ width: '100%' }} />
           </Form.Item>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="type"
-                label="工单类型"
-                rules={[{ required: true, message: '请选择工单类型' }]}
-              >
-                <Select placeholder="请选择">
-                  <Option value="fault">故障</Option>
-                  <Option value="inspection">巡检</Option>
-                  <Option value="maintenance">维护</Option>
-                  <Option value="warning">告警</Option>
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="level"
-                label="优先级"
-                rules={[{ required: true, message: '请选择优先级' }]}
-              >
-                <Select placeholder="请选择">
-                  <Option value="high">高</Option>
-                  <Option value="medium">中</Option>
-                  <Option value="low">低</Option>
-                </Select>
-              </Form.Item>
-            </Col>
-          </Row>
           <Form.Item
-            name="station"
-            label="所属电站"
-            rules={[{ required: true, message: '请选择电站' }]}
+            name="inverterId"
+            label="逆变器ID"
           >
-            <Select placeholder="请选择电站">
-              <Option value="一号光伏电站">一号光伏电站</Option>
-              <Option value="二号光伏电站">二号光伏电站</Option>
-              <Option value="三号光伏电站">三号光伏电站</Option>
-              <Option value="四号光伏电站">四号光伏电站</Option>
-              <Option value="五号光伏电站">五号光伏电站</Option>
-            </Select>
+            <InputNumber placeholder="请输入逆变器ID" style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            name="faultCode"
+            label="故障代码"
+            rules={[{ required: true, message: '请输入故障代码' }]}
+          >
+            <Input placeholder="请输入故障代码" />
           </Form.Item>
           <Form.Item
             name="description"

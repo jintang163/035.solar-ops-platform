@@ -2,7 +2,7 @@ import request from '../utils/request'
 
 export function getStationList(params) {
   return request({
-    url: '/station/page',
+    url: '/api/stations',
     method: 'get',
     params
   })
@@ -10,21 +10,21 @@ export function getStationList(params) {
 
 export function getStationListAll() {
   return request({
-    url: '/station/list',
+    url: '/api/stations/list',
     method: 'get'
   })
 }
 
 export function getStationDetail(id) {
   return request({
-    url: `/station/${id}`,
+    url: `/api/stations/${id}`,
     method: 'get'
   })
 }
 
 export function addStation(data) {
   return request({
-    url: '/station',
+    url: '/api/stations',
     method: 'post',
     data
   })
@@ -32,7 +32,7 @@ export function addStation(data) {
 
 export function updateStation(data) {
   return request({
-    url: '/station',
+    url: '/api/stations',
     method: 'put',
     data
   })
@@ -40,14 +40,7 @@ export function updateStation(data) {
 
 export function deleteStation(id) {
   return request({
-    url: `/station/${id}`,
+    url: `/api/stations/${id}`,
     method: 'delete'
-  })
-}
-
-export function getStationOverview() {
-  return request({
-    url: '/station/overview',
-    method: 'get'
   })
 }

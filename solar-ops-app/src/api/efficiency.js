@@ -1,17 +1,25 @@
-import { get } from './request'
+import { get, post } from './request'
 
 export function getEfficiencyRank(params) {
   return get('/efficiency/rank', params)
 }
 
-export function getHealthScore(stationId) {
-  return get(`/efficiency/health/${stationId}`)
+export function getStationEfficiency(stationId, params) {
+  return get(`/efficiency/station/${stationId}`, params)
 }
 
-export function getTrendData(params) {
-  return get('/efficiency/trend', params)
+export function getEfficiencyList(params) {
+  return get('/efficiency/list', params)
 }
 
-export function getPrStats(params) {
-  return get('/efficiency/pr-stats', params)
+export function getHealthAssessment(stationId) {
+  return get(`/health/latest/${stationId}`)
+}
+
+export function assessStationHealth(stationId) {
+  return post(`/health/assess/${stationId}`)
+}
+
+export function getStationHealthList(data) {
+  return post('/health/list', data)
 }

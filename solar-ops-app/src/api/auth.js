@@ -1,17 +1,13 @@
-import { post, get } from './request'
+import { get } from './request'
 
 export function login(data) {
   return post('/auth/login', data)
 }
 
-export function getSmsCode(phone) {
-  return get('/auth/sms-code', { phone })
+export function getStationListAll() {
+  return get('/stations/list')
 }
 
-export function getUserInfo() {
-  return get('/auth/user-info')
-}
-
-export function logout() {
-  return post('/auth/logout')
+export function getStationDetail(id) {
+  return get(`/stations/${id}`)
 }

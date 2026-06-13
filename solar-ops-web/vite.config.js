@@ -13,14 +13,14 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '')
+        target: 'http://localhost:9000',
+        changeOrigin: true
       },
       '/websocket': {
-        target: 'ws://localhost:8080',
+        target: 'ws://localhost:8081',
         ws: true,
-        changeOrigin: true
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/websocket/, '/device/websocket')
       }
     }
   }

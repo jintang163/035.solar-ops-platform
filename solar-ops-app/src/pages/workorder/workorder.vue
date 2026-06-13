@@ -42,7 +42,7 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { onReachBottom } from '@dcloudio/uni-app'
 import WorkOrderCard from '@/components/work-order-card.vue'
-import { getWorkOrderList, grabOrder, getWorkOrderStats } from '@/api/workorder'
+import { getWorkOrderPage, getWorkOrderStatistics, acceptWorkOrder, getWorkOrderDetail } from '@/api/workorder'
 
 const activeTab = ref(0)
 const loading = ref(false)
@@ -54,11 +54,19 @@ const pageInfo = reactive({
 })
 
 const tabs = ref([
-  { label: '待接单', value: 0, count: 0 },
-  { label: '处理中', value: 1, count: 0 },
-  { label: '待验收', value: 2, count: 0 },
-  { label: '已完成', value: 3, count: 0 }
+  { label: '待接单', statuses: [0], count: 0 },
+  { label: '处理中', statuses: [1, 2], count: 0 },
+  { label: '待验收', statuses: [3], count: 0 },
+  { label: '已完成', statuses: [4], count: 0 }
 ])
+
+function mapOrderItem(item) {
+  return {
+    ...item,
+    deviceName: item.inverterName || item.deviceName || '--',
+    level: item.faultLevel ?? item.level ?? 1
+  }
+}
 
 function switchTab(index) {
   activeTab.value = index
@@ -70,115 +78,146 @@ function switchTab(index) {
 
 async function fetchOrderList() {
   if (loading.value) return
-  
+
   loading.value = true
   try {
-    const res = await getWorkOrderList({
-      status: tabs.value[activeTab.value].value,
-      pageNum: pageInfo.pageNum,
-      pageSize: pageInfo.pageSize
-    })
-    
-    if (res?.list) {
+    const tab = tabs.value[activeTab.value]
+    const statuses = tab.statuses
+
+    if (statuses.length === 1) {
+      const res = await getWorkOrderPage({
+        status: statuses[0],
+        pageNum: pageInfo.pageNum,
+        pageSize: pageInfo.pageSize
+      })
+      handleListResponse(res)
+    } else {
+      const requests = statuses.map(status =>
+        getWorkOrderPage({
+          status,
+          pageNum: pageInfo.pageNum,
+          pageSize: pageInfo.pageSize
+        })
+      )
+      const results = await Promise.all(requests)
+      const mergedList = results
+        .filter(Boolean)
+        .flatMap(res => res.list || [])
+        .map(mapOrderItem)
+        .sort((a, b) => b.createTime - a.createTime)
+        .slice(0, pageInfo.pageSize)
+
       if (pageInfo.pageNum === 1) {
-        orderList.value = res.list
+        orderList.value = mergedList
       } else {
-        orderList.value = [...orderList.value, ...res.list]
+        orderList.value = [...orderList.value, ...mergedList]
       }
-      
-      if (res.list.length < pageInfo.pageSize) {
+
+      const totalFetched = results.reduce((sum, res) => sum + (res?.list?.length || 0), 0)
+      if (totalFetched < pageInfo.pageSize) {
         noMore.value = true
       }
     }
   } catch (err) {
     console.error('获取工单列表失败:', err)
-    loadMockData()
+    if (pageInfo.pageNum === 1) {
+      orderList.value = []
+    }
   } finally {
     loading.value = false
   }
 }
 
-function loadMockData() {
-  const status = tabs.value[activeTab.value].value
-  const mockData = [
-    {
-      id: 1,
-      orderNo: 'WO202401150001',
-      status: status,
-      faultName: '逆变器直流侧过压故障',
-      stationName: '阳光光伏电站',
-      deviceName: 'INV-003',
-      level: 3,
-      createTime: new Date().getTime() - 3600000
-    },
-    {
-      id: 2,
-      orderNo: 'WO202401150002',
-      status: status,
-      faultName: '通讯模块异常',
-      stationName: '阳光光伏电站',
-      deviceName: 'INV-005',
-      level: 2,
-      createTime: new Date().getTime() - 7200000
-    },
-    {
-      id: 3,
-      orderNo: 'WO202401150003',
-      status: status,
-      faultName: '组件温度过高告警',
-      stationName: '阳光光伏电站',
-      deviceName: 'INV-002',
-      level: 1,
-      createTime: new Date().getTime() - 10800000
+function handleListResponse(res) {
+  if (res?.list) {
+    const mapped = res.list.map(mapOrderItem)
+    if (pageInfo.pageNum === 1) {
+      orderList.value = mapped
+    } else {
+      orderList.value = [...orderList.value, ...mapped]
     }
-  ]
-  orderList.value = mockData
+    if (res.list.length < pageInfo.pageSize) {
+      noMore.value = true
+    }
+  } else {
+    if (pageInfo.pageNum === 1) {
+      orderList.value = []
+    }
+    noMore.value = true
+  }
 }
 
 async function fetchStats() {
   try {
-    const stats = await getWorkOrderStats()
+    const stats = await getWorkOrderStatistics()
     if (stats) {
       tabs.value[0].count = stats.pending || 0
-      tabs.value[1].count = stats.processing || 0
-      tabs.value[2].count = stats.accepting || 0
+      tabs.value[1].count = (stats.accepted || 0) + (stats.processing || 0)
+      tabs.value[2].count = stats.checking || 0
       tabs.value[3].count = stats.completed || 0
     }
   } catch (err) {
     console.error('获取工单统计失败:', err)
-    tabs.value[0].count = 5
-    tabs.value[1].count = 3
-    tabs.value[2].count = 2
-    tabs.value[3].count = 12
   }
+}
+
+function getCurrentUser() {
+  try {
+    const userInfo = uni.getStorageSync('userInfo')
+    if (userInfo) {
+      const parsed = typeof userInfo === 'string' ? JSON.parse(userInfo) : userInfo
+      return {
+        operatorId: parsed.id || parsed.userId || '',
+        operatorName: parsed.name || parsed.userName || ''
+      }
+    }
+  } catch (e) {
+    console.error('获取用户信息失败:', e)
+  }
+  return { operatorId: '', operatorName: '' }
 }
 
 async function handleGrab(item) {
   uni.showModal({
-    title: '确认抢单',
-    content: `确定要抢工单 ${item.orderNo} 吗？`,
+    title: '确认接单',
+    content: `确定要接单 ${item.orderNo} 吗？`,
     success: async (res) => {
       if (res.confirm) {
         try {
-          await grabOrder(item.id)
-          uni.showToast({ title: '抢单成功', icon: 'success' })
+          const { operatorId, operatorName } = getCurrentUser()
+          await acceptWorkOrder({
+            orderId: item.id,
+            operatorId,
+            operatorName
+          })
+          uni.showToast({ title: '接单成功', icon: 'success' })
           fetchOrderList()
           fetchStats()
         } catch (err) {
-          uni.showToast({ title: '抢单成功', icon: 'success' })
-          item.status = 1
+          console.error('接单失败:', err)
+          uni.showToast({ title: '接单失败，请重试', icon: 'none' })
         }
       }
     }
   })
 }
 
-function handleDetail(item) {
-  uni.showToast({ title: `查看工单 ${item.orderNo}`, icon: 'none' })
+async function handleDetail(item) {
+  try {
+    await getWorkOrderDetail(item.id)
+    uni.navigateTo({
+      url: `/pages/workorder/detail?id=${item.id}`
+    })
+  } catch (err) {
+    console.error('获取工单详情失败:', err)
+    uni.navigateTo({
+      url: `/pages/workorder/detail?id=${item.id}`
+    })
+  }
 }
 
 function loadMore() {
-  if (noMore.value) return
+  if (noMore.value || loading.value) return
   pageInfo.pageNum++
   fetchOrderList()
 }
@@ -191,12 +230,12 @@ watch(activeTab, () => {
   pageInfo.pageNum = 1
   orderList.value = []
   noMore.value = false
-  loadMockData()
+  fetchOrderList()
 })
 
 onMounted(() => {
   fetchStats()
-  loadMockData()
+  fetchOrderList()
 })
 </script>
 
