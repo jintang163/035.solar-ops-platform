@@ -1,0 +1,29 @@
+{
+  "name": "solar-ops-app",
+  "version": "1.0.0",
+  "description": "Solar Ops Mobile App based on uni-app Vue 3",
+  "scripts": {
+    "dev:h5": "uni",
+    "dev:mp-weixin": "uni -p mp-weixin",
+    "build:h5": "uni build",
+    "build:mp-weixin": "uni build -p mp-weixin"
+  },
+  "dependencies": {
+    "@dcloudio/uni-app": "3.0.0-alpha-3090920231225001",
+    "@dcloudio/uni-components": "3.0.0-alpha-3090920231225001",
+    "@dcloudio/uni-h5": "3.0.0-alpha-3090920231225001",
+    "@dcloudio/uni-mp-weixin": "3.0.0-alpha-3090920231225001",
+    "vue": "^3.4.0",
+    "pinia": "^2.1.7",
+    "uview-plus": "^3.1.42"
+  },
+  "devDependencies": {
+    "@dcloudio/types": "^3.4.8",
+    "@dcloudio/uni-cli-shared": "3.0.0-alpha-3090920231225001",
+    "@dcloudio/uni-stacktracey": "3.0.0-alpha-3090920231225001",
+    "@dcloudio/vite-plugin-uni": "3.0.0-alpha-3090920231225001",
+    "vite": "^5.0.0",
+    "sass": "^1.69.0",
+    "sass-loader": "^13.3.0"
+  }
+}

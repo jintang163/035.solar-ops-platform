@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.solar.ops.workorder.mapper.WorkOrderLogMapper">
+
+    <resultMap id="BaseResultMap" type="com.solar.ops.workorder.entity.WorkOrderLog">
+        <id column="id" property="id"/>
+        <result column="order_id" property="orderId"/>
+        <result column="operator_id" property="operatorId"/>
+        <result column="operator_name" property="operatorName"/>
+        <result column="action" property="action"/>
+        <result column="remark" property="remark"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, order_id, operator_id, operator_name, action, remark, create_time, update_time, deleted
+    </sql>
+
+</mapper>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.solar.ops.workorder.mapper.FaultLibraryMapper">
+
+    <resultMap id="BaseResultMap" type="com.solar.ops.workorder.entity.FaultLibrary">
+        <id column="id" property="id"/>
+        <result column="fault_code" property="faultCode"/>
+        <result column="fault_name" property="faultName"/>
+        <result column="fault_level" property="faultLevel"/>
+        <result column="fault_desc" property="faultDesc"/>
+        <result column="solution" property="solution"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, fault_code, fault_name, fault_level, fault_desc, solution, create_time, update_time, deleted
+    </sql>
+
+</mapper>

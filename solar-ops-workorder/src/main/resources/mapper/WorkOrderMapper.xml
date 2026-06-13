@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.solar.ops.workorder.mapper.WorkOrderMapper">
+
+    <resultMap id="BaseResultMap" type="com.solar.ops.workorder.entity.WorkOrder">
+        <id column="id" property="id"/>
+        <result column="order_no" property="orderNo"/>
+        <result column="station_id" property="stationId"/>
+        <result column="inverter_id" property="inverterId"/>
+        <result column="fault_code" property="faultCode"/>
+        <result column="fault_name" property="faultName"/>
+        <result column="fault_level" property="faultLevel"/>
+        <result column="description" property="description"/>
+        <result column="solution" property="solution"/>
+        <result column="status" property="status"/>
+        <result column="handler_id" property="handlerId"/>
+        <result column="handler_name" property="handlerName"/>
+        <result column="accept_time" property="acceptTime"/>
+        <result column="process_time" property="processTime"/>
+        <result column="complete_time" property="completeTime"/>
+        <result column="expect_time" property="expectTime"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, order_no, station_id, inverter_id, fault_code, fault_name, fault_level, description, solution,
+        status, handler_id, handler_name, accept_time, process_time, complete_time, expect_time,
+        create_time, update_time, deleted
+    </sql>
+
+</mapper>

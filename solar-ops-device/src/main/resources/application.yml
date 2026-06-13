@@ -1,0 +1,72 @@
+server:
+  port: 8081
+  servlet:
+    context-path: /device
+
+spring:
+  application:
+    name: solar-ops-device
+  redis:
+    host: localhost
+    port: 6379
+    password:
+    database: 0
+    timeout: 3000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-wait: -1ms
+        max-idle: 8
+        min-idle: 0
+
+  rocketmq:
+    name-server: localhost:9876
+    producer:
+      group: device-producer-group
+    consumer:
+      group: device-consumer-group
+
+influxdb:
+  url: http://localhost:8086
+  username: admin
+  password: admin
+  database: solar_ops
+  retention-policy: autogen
+  connect-timeout: 10
+  read-timeout: 30
+  write-timeout: 10
+
+mqtt:
+  broker: tcp://localhost:1883
+  client-id: solar-ops-device
+  username: admin
+  password: public
+  topic:
+    device-data: solar/device/+/data
+    device-status: solar/device/+/status
+
+netty:
+  tcp:
+    port: 9000
+    boss-threads: 1
+    worker-threads: 8
+    keep-alive: true
+    so-backlog: 1024
+    idle-timeout: 300
+
+device:
+  offline-timeout: 300
+  abnormal:
+    voltage-max: 450
+    voltage-min: 0
+    current-max: 100
+    current-min: 0
+    temperature-max: 85
+    power-max: 5000
+
+logging:
+  level:
+    com.solar.ops: debug
+    org.influxdb: info
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
