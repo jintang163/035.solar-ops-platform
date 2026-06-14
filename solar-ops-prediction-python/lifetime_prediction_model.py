@@ -77,6 +77,9 @@ class LifetimePredictionModel:
         training_data: 历史运行数据，按时间排序
         """
         try:
+            if not TENSORFLOW_AVAILABLE:
+                return False, "TensorFlow未安装，无法训练LSTM模型", 0, 0
+
             if not training_data or len(training_data) < 60:
                 return False, "训练数据不足，至少需要60天数据", 0, 0
 
@@ -109,37 +112,28 @@ class LifetimePredictionModel:
             X_train, X_val = X_scaled[:train_size], X_scaled[train_size:]
             y_train, y_val = y[:train_size], y[train_size:]
 
-            if TENSORFLOW_AVAILABLE:
-                model = self._build_lstm_model(sequence_length, 7)
+            model = self._build_lstm_model(sequence_length, 7)
 
-                early_stopping = EarlyStopping(
-                    monitor='val_loss',
-                    patience=10,
-                    restore_best_weights=True
-                )
+            early_stopping = EarlyStopping(
+                monitor='val_loss',
+                patience=10,
+                restore_best_weights=True
+            )
 
-                history = model.fit(
-                    X_train, y_train,
-                    epochs=50,
-                    batch_size=16,
-                    validation_data=(X_val, y_val),
-                    callbacks=[early_stopping],
-                    verbose=0
-                )
+            history = model.fit(
+                X_train, y_train,
+                epochs=50,
+                batch_size=16,
+                validation_data=(X_val, y_val),
+                callbacks=[early_stopping],
+                verbose=0
+            )
 
-                train_pred = model.predict(X_train, verbose=0).flatten()
-                val_pred = model.predict(X_val, verbose=0).flatten()
+            train_pred = model.predict(X_train, verbose=0).flatten()
+            val_pred = model.predict(X_val, verbose=0).flatten()
 
-                model_path = self._get_model_path(inverter_id)
-                model.save(model_path)
-            else:
-                val_pred, train_pred = self._fallback_predict(X_train, y_train, X_val, y_val)
-
-                model_path = self._get_model_path(inverter_id)
-                np.save(model_path.replace('.h5', '_fallback.npy'), {
-                    'X_train': X_train,
-                    'y_train': y_train
-                })
+            model_path = self._get_model_path(inverter_id)
+            model.save(model_path)
 
             train_score = r2_score(y_train, train_pred) if len(train_pred) > 1 else 0.5
             val_score = r2_score(y_val, val_pred) if len(val_pred) > 1 else 0.5
@@ -156,7 +150,7 @@ class LifetimePredictionModel:
                 "feature_names": ["avg_temperature", "max_temperature", "operating_hours",
                                   "fault_count", "fault_severity", "output_power_ratio",
                                   "efficiency_drop"],
-                "tensorflow_available": TENSORFLOW_AVAILABLE
+                "tensorflow_available": True
             }
 
             info_path = self._get_info_path(inverter_id)
@@ -174,7 +168,7 @@ class LifetimePredictionModel:
                 json.dump(scaler_data, f, ensure_ascii=False, indent=2)
 
             key = str(inverter_id)
-            self.models[key] = TENSORFLOW_AVAILABLE
+            self.models[key] = True
             self.model_info[key] = info
             self.scalers[key] = scaler
 
@@ -196,13 +190,6 @@ class LifetimePredictionModel:
         model.compile(optimizer='adam', loss='mse', metrics=['mae'])
         return model
 
-    def _fallback_predict(self, X_train, y_train, X_val, y_val):
-        """当TensorFlow不可用时的降级预测方案"""
-        train_health_trend = np.mean([seq[-1][5] for seq in X_train])
-        val_pred = np.full(len(X_val), train_health_trend * 0.95)
-        train_pred = np.full(len(y_train), train_health_trend)
-        return val_pred, train_pred
-
     def predict(self, inverter_id, recent_data, forecast_days=90):
         """
         预测剩余寿命
@@ -210,6 +197,9 @@ class LifetimePredictionModel:
         forecast_days: 预测未来的天数
         """
         try:
+            if not TENSORFLOW_AVAILABLE:
+                return None, None, "TensorFlow未安装，无法进行LSTM预测"
+
             key = str(inverter_id)
 
             if key not in self.model_info:
@@ -232,7 +222,7 @@ class LifetimePredictionModel:
                     scaler.data_max_ = np.array(scaler_data["data_max_"])
                     self.scalers[key] = scaler
                 else:
-                    return None, None, "缩放器不存在"
+                    return None, None, "缩放器不存在，请先训练模型"
 
             info = self.model_info[key]
             sequence_length = info.get("sequence_length", 30)
@@ -241,6 +231,15 @@ class LifetimePredictionModel:
             sorted_data = sorted(recent_data, key=lambda x: x.get("record_date", ""))
             if len(sorted_data) < sequence_length:
                 return None, None, f"数据不足，需要至少{sequence_length}天数据"
+
+            model_path = self._get_model_path(inverter_id)
+            if not os.path.exists(model_path):
+                return None, None, "模型文件不存在，请先训练模型"
+
+            try:
+                model = load_model(model_path)
+            except Exception as e:
+                return None, None, f"模型加载失败: {str(e)}"
 
             recent_seq = sorted_data[-sequence_length:]
             features = []
@@ -263,51 +262,24 @@ class LifetimePredictionModel:
             remaining_life_days = 0
             current_health = 1.0
 
-            if TENSORFLOW_AVAILABLE:
-                model_path = self._get_model_path(inverter_id)
-                if os.path.exists(model_path):
-                    model = load_model(model_path)
-                else:
-                    return None, None, "模型文件不存在"
+            temp_seq = current_seq.copy()
+            for day in range(forecast_days):
+                pred = model.predict(temp_seq, verbose=0)[0][0]
+                health_scores.append(float(pred))
+                current_health = float(pred)
 
-                temp_seq = current_seq.copy()
-                for day in range(forecast_days):
-                    pred = model.predict(temp_seq, verbose=0)[0][0]
-                    health_scores.append(float(pred))
-                    current_health = float(pred)
+                temp = temp_seq[0, 1:, :].copy()
+                new_point = temp[-1].copy()
+                new_point[5] = max(0.1, pred)
+                new_point[6] = (1.0 - pred) * 100
+                temp = np.vstack([temp, new_point.reshape(1, -1)])
+                temp_seq = temp.reshape(1, sequence_length, 7)
 
-                    temp = temp_seq[0, 1:, :].copy()
-                    new_point = temp[-1].copy()
-                    new_point[5] = max(0.1, pred)
-                    new_point[6] = (1.0 - pred) * 100
-                    temp = np.vstack([temp, new_point.reshape(1, -1)])
-                    temp_seq = temp.reshape(1, sequence_length, 7)
+                conf = max(0.3, 1.0 - (day / forecast_days) * 0.5)
+                confidence_scores.append(conf)
 
-                    conf = max(0.3, 1.0 - (day / forecast_days) * 0.5)
-                    confidence_scores.append(conf)
-
-                    if current_health < 0.3 and remaining_life_days == 0:
-                        remaining_life_days = day
-            else:
-                initial_health = recent_seq[-1].get("output_power_ratio", 1.0)
-                fault_count = sum(d.get("fault_count", 0) for d in recent_seq)
-                avg_temp = sum(d.get("avg_temperature", 25) for d in recent_seq) / len(recent_seq)
-
-                degradation_rate = 0.001
-                if fault_count > 5:
-                    degradation_rate += 0.002
-                if avg_temp > 45:
-                    degradation_rate += 0.001
-
-                current_health = initial_health
-                for day in range(forecast_days):
-                    current_health = max(0.1, current_health - degradation_rate)
-                    health_scores.append(current_health)
-                    conf = max(0.3, 1.0 - (day / forecast_days) * 0.5)
-                    confidence_scores.append(conf)
-
-                    if current_health < 0.3 and remaining_life_days == 0:
-                        remaining_life_days = day
+                if current_health < 0.3 and remaining_life_days == 0:
+                    remaining_life_days = day
 
             if remaining_life_days == 0 and current_health > 0.3:
                 remaining_life_days = forecast_days + int((current_health - 0.3) / 0.002)
@@ -324,7 +296,7 @@ class LifetimePredictionModel:
                 "current_health_score": current_health if health_scores else 1.0,
                 "forecast_days": forecast_days,
                 "model_version": version,
-                "tensorflow_available": TENSORFLOW_AVAILABLE
+                "tensorflow_available": True
             }
 
             return result, None, version
@@ -337,6 +309,12 @@ class LifetimePredictionModel:
         计算单日健康度评分（基于多维度综合评估）
         """
         try:
+            required_fields = ["avg_temperature", "max_temperature", "operating_hours",
+                               "fault_count", "fault_severity", "output_power_ratio"]
+            for field in required_fields:
+                if field not in daily_data or daily_data[field] is None:
+                    raise ValueError(f"缺少必要字段: {field}")
+
             temp_score = 1.0
             avg_temp = daily_data.get("avg_temperature", 25)
             if avg_temp > 50:
@@ -362,7 +340,7 @@ class LifetimePredictionModel:
             return float(max(0.0, min(1.0, health_score)))
 
         except Exception as e:
-            return 0.8
+            raise ValueError(f"健康度计算失败: {str(e)}")
 
     def get_model_status(self, inverter_id):
         """获取模型状态"""
@@ -393,6 +371,9 @@ class LifetimePredictionModel:
         生成备件更换建议
         提前3个月（90天）预警
         """
+        if remaining_life_days is None or current_health is None:
+            raise ValueError("缺少必要参数: remaining_life_days 和 current_health")
+
         warnings = []
         suggestions = []
 

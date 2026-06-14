@@ -209,4 +209,187 @@ public class PredictionInfluxDBService {
         }
         return null;
     }
+
+    public Map<String, Object> fetchDailyInverterData(Long inverterId, LocalDate date) {
+        Map<String, Object> result = new HashMap<>();
+
+        Inverter inverter = inverterMapper.selectById(inverterId);
+        if (inverter == null || inverter.getDeviceSn() == null) {
+            log.warn("逆变器不存在或无设备序列号: inverterId={}", inverterId);
+            return result;
+        }
+
+        LocalDateTime startOfDay = date.atStartOfDay();
+        LocalDateTime endOfDay = date.atTime(23, 59, 59);
+        long startTime = startOfDay.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        long endTime = endOfDay.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+
+        String queryStr = String.format(
+                "SELECT mean(temperature) as avg_temp, max(temperature) as max_temp, " +
+                        "max(energy) as max_energy, min(energy) as min_energy, " +
+                        "count(faultCode) as fault_count, " +
+                        "non_negative_derivative(max(energy), 1h) as hourly_energy " +
+                        "FROM %s WHERE deviceId='%s' AND time >= %dms AND time <= %dms " +
+                        "GROUP BY time(1d)",
+                MEASUREMENT, inverter.getDeviceSn(), startTime, endTime
+        );
+
+        try {
+            Query query = new Query(queryStr, database);
+            QueryResult queryResult = influxDB.query(query);
+
+            if (queryResult.getResults() != null) {
+                for (QueryResult.Result qResult : queryResult.getResults()) {
+                    if (qResult.getSeries() != null) {
+                        for (QueryResult.Series series : qResult.getSeries()) {
+                            List<String> columns = series.getColumns();
+                            List<List<Object>> values = series.getValues();
+
+                            if (values != null && !values.isEmpty()) {
+                                List<Object> value = values.get(0);
+                                for (int i = 0; i < columns.size(); i++) {
+                                    String col = columns.get(i);
+                                    Object val = value.get(i);
+                                    if (val != null && !"time".equals(col)) {
+                                        result.put(col, ((Number) val).doubleValue());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!result.containsKey("avg_temp")) {
+                String detailQuery = String.format(
+                        "SELECT mean(temperature) as avg_temp, max(temperature) as max_temp, " +
+                                "max(power) as max_power, mean(power) as avg_power " +
+                                "FROM %s WHERE deviceId='%s' AND time >= %dms AND time <= %dms",
+                        MEASUREMENT, inverter.getDeviceSn(), startTime, endTime
+                );
+
+                Query detailQueryObj = new Query(detailQuery, database);
+                QueryResult detailResult = influxDB.query(detailQueryObj);
+
+                if (detailResult.getResults() != null) {
+                    for (QueryResult.Result qResult : detailResult.getResults()) {
+                        if (qResult.getSeries() != null) {
+                            for (QueryResult.Series series : qResult.getSeries()) {
+                                List<String> columns = series.getColumns();
+                                List<List<Object>> values = series.getValues();
+
+                                if (values != null && !values.isEmpty()) {
+                                    List<Object> value = values.get(0);
+                                    for (int i = 0; i < columns.size(); i++) {
+                                        String col = columns.get(i);
+                                        Object val = value.get(i);
+                                        if (val != null && !"time".equals(col)) {
+                                            result.put(col, ((Number) val).doubleValue());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            long operatingHours = calculateOperatingHours(inverter.getDeviceSn(), startTime, endTime);
+            if (operatingHours > 0) {
+                result.put("operating_hours", (double) operatingHours);
+            }
+
+        } catch (Exception e) {
+            log.error("从InfluxDB查询逆变器日数据失败: inverterId={}, date={}", inverterId, date, e);
+        }
+
+        return result;
+    }
+
+    private long calculateOperatingHours(String deviceSn, long startTime, long endTime) {
+        try {
+            String queryStr = String.format(
+                    "SELECT count(power) as point_count FROM %s " +
+                            "WHERE deviceId='%s' AND time >= %dms AND time <= %dms " +
+                            "AND power > 0 GROUP BY time(1h)",
+                    MEASUREMENT, deviceSn, startTime, endTime
+            );
+
+            Query query = new Query(queryStr, database);
+            QueryResult queryResult = influxDB.query(query);
+
+            long hoursWithPower = 0;
+            if (queryResult.getResults() != null) {
+                for (QueryResult.Result qResult : queryResult.getResults()) {
+                    if (qResult.getSeries() != null) {
+                        hoursWithPower = qResult.getSeries().size();
+                    }
+                }
+            }
+
+            return hoursWithPower;
+        } catch (Exception e) {
+            log.error("计算工作时长失败: deviceSn={}", deviceSn, e);
+            return 0;
+        }
+    }
+
+    public List<Map<String, Object>> fetchHourlyDataForDay(Long inverterId, LocalDate date) {
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        Inverter inverter = inverterMapper.selectById(inverterId);
+        if (inverter == null || inverter.getDeviceSn() == null) {
+            return result;
+        }
+
+        LocalDateTime startOfDay = date.atStartOfDay();
+        LocalDateTime endOfDay = date.atTime(23, 59, 59);
+        long startTime = startOfDay.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        long endTime = endOfDay.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+
+        String queryStr = String.format(
+                "SELECT mean(temperature) as temperature, mean(power) as power, max(faultCode) as faultCode " +
+                        "FROM %s WHERE deviceId='%s' AND time >= %dms AND time <= %dms " +
+                        "GROUP BY time(1h) fill(none) ORDER BY time ASC",
+                MEASUREMENT, inverter.getDeviceSn(), startTime, endTime
+        );
+
+        try {
+            Query query = new Query(queryStr, database);
+            QueryResult queryResult = influxDB.query(query);
+
+            if (queryResult.getResults() != null) {
+                for (QueryResult.Result qResult : queryResult.getResults()) {
+                    if (qResult.getSeries() != null) {
+                        for (QueryResult.Series series : qResult.getSeries()) {
+                            List<String> columns = series.getColumns();
+                            List<List<Object>> values = series.getValues();
+
+                            if (values != null) {
+                                for (List<Object> value : values) {
+                                    Map<String, Object> dp = new HashMap<>();
+                                    for (int i = 0; i < columns.size(); i++) {
+                                        String col = columns.get(i);
+                                        Object val = value.get(i);
+                                        if ("time".equals(col)) {
+                                            dp.put("timestamp", parseTime(val));
+                                        } else if (val != null) {
+                                            dp.put(col, ((Number) val).doubleValue());
+                                        }
+                                    }
+                                    if (dp.get("temperature") != null || dp.get("power") != null) {
+                                        result.add(dp);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("查询小时级数据失败: inverterId={}", inverterId, e);
+        }
+
+        return result;
+    }
 }

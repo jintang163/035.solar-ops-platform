@@ -10,11 +10,13 @@ import springfox.documentation.swagger2.annotations.EnableSwagger2WebMvc;
 @ComponentScan(basePackages = {
         "com.solar.ops.prediction",
         "com.solar.ops.admin",
-        "com.solar.ops.common"
+        "com.solar.ops.common",
+        "com.solar.ops.workorder"
 })
 @MapperScan(basePackages = {
         "com.solar.ops.prediction.mapper",
-        "com.solar.ops.admin.mapper"
+        "com.solar.ops.admin.mapper",
+        "com.solar.ops.workorder.mapper"
 })
 @EnableSwagger2WebMvc
 public class PredictionApplication {

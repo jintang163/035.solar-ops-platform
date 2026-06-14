@@ -4,13 +4,16 @@
       <view class="header-bg"></view>
       <view class="header-content">
         <view class="header-title">❤️ 设备生命周期预测</view>
-        <view class="header-sub" v-if="predictionData">
+        <view class="header-sub" v-if="hasPredictionData && predictionData">
           <text class="health-text">健康度 {{ (predictionData.currentHealthScore * 100).toFixed(1) }}%</text>
+        </view>
+        <view class="header-sub" v-else-if="errorMessage">
+          <text class="health-text">暂无数据</text>
         </view>
       </view>
     </view>
 
-    <view class="summary-section">
+    <view class="summary-section" v-if="hasPredictionData && predictionData">
       <view class="summary-card">
         <view class="summary-item">
           <view class="summary-icon health-icon">❤️</view>
@@ -46,7 +49,7 @@
     <view class="section">
       <view class="section-header">
         <view class="section-title">健康度趋势</view>
-        <view class="legend">
+        <view class="legend" v-if="hasPredictionData && predictionData?.healthTrend?.length > 0">
           <view class="legend-item">
             <view class="legend-dot legend-dot--green"></view>
             <text>健康度</text>
@@ -58,7 +61,15 @@
         </view>
       </view>
 
-      <view class="chart-card">
+      <view class="error-tip" v-if="errorMessage">
+        <text class="error-icon">💡</text>
+        <view class="error-content">
+          <text class="error-title">暂无预测数据</text>
+          <text class="error-desc">{{ errorMessage }}</text>
+        </view>
+      </view>
+
+      <view class="chart-card" v-else-if="hasPredictionData && predictionData?.healthTrend?.length > 0">
         <view class="chart-canvas">
           <view class="chart-y-axis">
             <text v-for="(label, idx) in yAxisLabels" :key="idx">{{ label }}</text>
@@ -123,6 +134,12 @@
         </view>
       </view>
 
+      <view class="empty-state" v-else-if="sparePartError">
+        <text class="empty-icon">📊</text>
+        <text class="empty-text">{{ sparePartError }}</text>
+        <text class="empty-desc">请先完成寿命预测后再查看备件建议</text>
+      </view>
+
       <view class="empty-state" v-else-if="!sparePartData?.suggestions?.length">
         <text class="empty-icon">✅</text>
         <text class="empty-text">设备状态良好，暂无备件更换建议</text>
@@ -182,6 +199,9 @@ const loading = ref(false)
 const predictionData = ref(null)
 const sparePartData = ref(null)
 const alertList = ref([])
+const errorMessage = ref(null)
+const sparePartError = ref(null)
+const hasPredictionData = ref(false)
 
 const yAxisLabels = computed(() => ['100%', '75%', '50%', '25%', '0%'])
 
@@ -245,6 +265,9 @@ function formatTime(t) {
 
 async function fetchData() {
   loading.value = true
+  errorMessage.value = null
+  sparePartError.value = null
+  hasPredictionData.value = false
   try {
     const results = await Promise.allSettled([
       getLifetimePrediction({ stationId: DEFAULT_STATION_ID, inverterId: DEFAULT_INVERTER_ID, forecastDays: 90 }),
@@ -253,16 +276,40 @@ async function fetchData() {
     ])
 
     if (results[0].status === 'fulfilled') {
-      predictionData.value = results[0].value?.data || results[0].value
+      const data = results[0].value?.data || results[0].value
+      if (data) {
+        predictionData.value = data
+        hasPredictionData.value = true
+      } else {
+        predictionData.value = null
+        errorMessage.value = '暂无寿命预测数据，请确保已有足够的健康度历史数据（至少30天）并完成模型训练'
+      }
+    } else {
+      predictionData.value = null
+      const err = results[0].reason
+      errorMessage.value = err?.message || '获取寿命预测数据失败'
     }
+
     if (results[1].status === 'fulfilled') {
-      sparePartData.value = results[1].value?.data || results[1].value
+      const data = results[1].value?.data || results[1].value
+      if (data) {
+        sparePartData.value = data
+      } else {
+        sparePartData.value = null
+        sparePartError.value = '暂无有效的备件建议数据'
+      }
+    } else {
+      sparePartData.value = null
+      const err = results[1].reason
+      sparePartError.value = err?.message || '获取备件建议失败'
     }
+
     if (results[2].status === 'fulfilled') {
       alertList.value = results[2].value?.list || results[2].value || []
     }
   } catch (err) {
     console.error('获取寿命预测数据失败:', err)
+    errorMessage.value = '获取数据失败，请稍后重试'
   } finally {
     loading.value = false
   }
@@ -779,6 +826,48 @@ onPullDownRefresh(() => {
   .empty-text {
     font-size: 26rpx;
     color: #999;
+    display: block;
+  }
+
+  .empty-desc {
+    font-size: 22rpx;
+    color: #bbb;
+    display: block;
+    margin-top: 8rpx;
+  }
+}
+
+.error-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 20rpx;
+  padding: 30rpx;
+  background-color: #fffbe6;
+  border-radius: 16rpx;
+  border-left: 8rpx solid #faad14;
+
+  .error-icon {
+    font-size: 40rpx;
+    flex-shrink: 0;
+  }
+
+  .error-content {
+    flex: 1;
+
+    .error-title {
+      font-size: 28rpx;
+      font-weight: 600;
+      color: #fa8c16;
+      display: block;
+      margin-bottom: 8rpx;
+    }
+
+    .error-desc {
+      font-size: 24rpx;
+      color: #999;
+      line-height: 1.6;
+      display: block;
+    }
   }
 }
 

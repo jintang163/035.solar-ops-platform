@@ -71,6 +71,9 @@ const DeviceLifetime = () => {
   const [alertModalVisible, setAlertModalVisible] = useState(false)
   const [currentAlert, setCurrentAlert] = useState(null)
   const [form] = Form.useForm()
+  const [errorMessage, setErrorMessage] = useState(null)
+  const [sparePartError, setSparePartError] = useState(null)
+  const [hasPredictionData, setHasPredictionData] = useState(false)
 
   const fetchStationList = useCallback(async () => {
     try {
@@ -102,16 +105,27 @@ const DeviceLifetime = () => {
   const fetchPredictionData = useCallback(async () => {
     if (!selectedStation || !selectedInverter) return
     setLoading(true)
+    setErrorMessage(null)
+    setHasPredictionData(false)
     try {
       const res = await getLifetimePrediction({
         stationId: selectedStation,
         inverterId: selectedInverter,
         forecastDays
       })
-      setPredictionData(res.data)
+      if (res.data) {
+        setPredictionData(res.data)
+        setHasPredictionData(true)
+      } else {
+        setPredictionData(null)
+        setErrorMessage('暂无寿命预测数据，请确保已有足够的健康度历史数据（至少30天）并完成模型训练')
+      }
     } catch (e) {
       console.error('获取寿命预测数据失败', e)
-      message.error('获取寿命预测数据失败')
+      setPredictionData(null)
+      setHasPredictionData(false)
+      const msg = e.response?.data?.message || e.message || '获取寿命预测数据失败'
+      setErrorMessage(msg)
     } finally {
       setLoading(false)
     }
@@ -119,14 +133,23 @@ const DeviceLifetime = () => {
 
   const fetchSparePartAdvice = useCallback(async () => {
     if (!selectedStation || !selectedInverter) return
+    setSparePartError(null)
     try {
       const res = await getSparePartAdvice({
         stationId: selectedStation,
         inverterId: selectedInverter
       })
-      setSparePartData(res.data)
+      if (res.data) {
+        setSparePartData(res.data)
+      } else {
+        setSparePartData(null)
+        setSparePartError('暂无有效的备件建议数据')
+      }
     } catch (e) {
       console.error('获取备件建议失败', e)
+      setSparePartData(null)
+      const msg = e.response?.data?.message || e.message || '获取备件建议失败'
+      setSparePartError(msg)
     }
   }, [selectedStation, selectedInverter])
 
@@ -177,7 +200,18 @@ const DeviceLifetime = () => {
   }, [selectedInverter, forecastDays, fetchPredictionData, fetchSparePartAdvice, fetchAlerts, fetchPendingCount])
 
   const getHealthChartOption = () => {
-    if (!predictionData) return {}
+    if (!predictionData || !predictionData.healthTrend || predictionData.healthTrend.length === 0) {
+      return {
+        title: {
+          text: '暂无健康度趋势数据',
+          subtext: '请确保已有足够的历史数据并完成模型训练',
+          left: 'center',
+          top: 'center',
+          textStyle: { color: '#999', fontSize: 16 },
+          subtextStyle: { color: '#bbb', fontSize: 12 }
+        }
+      }
+    }
     const { timeAxis, healthTrend, confidenceTrend } = predictionData
 
     return {
@@ -480,7 +514,22 @@ const DeviceLifetime = () => {
         }
       >
         <Spin spinning={loading}>
-          {predictionData && (
+          {errorMessage && (
+            <Alert
+              type="warning"
+              showIcon
+              icon={<BulbOutlined />}
+              message="暂无预测数据"
+              description={errorMessage}
+              style={{ marginBottom: 16 }}
+              action={
+                <Button size="small" type="primary" onClick={handleTrainModel}>
+                  立即训练模型
+                </Button>
+              }
+            />
+          )}
+          {hasPredictionData && predictionData && (
             <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
               <Col xs={24} sm={12} md={6}>
                 <Card size="small">
@@ -583,7 +632,15 @@ const DeviceLifetime = () => {
                 }
                 size="small"
               >
-                {sparePartData && (
+                {sparePartError ? (
+                  <div style={{ textAlign: 'center', padding: '40px 20px', color: '#999' }}>
+                    <BulbOutlined style={{ fontSize: 48, color: '#ddd', marginBottom: 12 }} />
+                    <div style={{ fontSize: 14, marginBottom: 8 }}>{sparePartError}</div>
+                    <div style={{ fontSize: 12, color: '#bbb' }}>
+                      请先完成寿命预测后再查看备件建议
+                    </div>
+                  </div>
+                ) : sparePartData ? (
                   <>
                     {sparePartData.warnings?.length > 0 && (
                       <>
@@ -620,6 +677,11 @@ const DeviceLifetime = () => {
                       )}
                     />
                   </>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '40px 20px', color: '#999' }}>
+                    <ToolOutlined style={{ fontSize: 48, color: '#ddd', marginBottom: 12 }} />
+                    <div style={{ fontSize: 14 }}>暂无备件建议数据</div>
+                  </div>
                 )}
               </Card>
             </Col>

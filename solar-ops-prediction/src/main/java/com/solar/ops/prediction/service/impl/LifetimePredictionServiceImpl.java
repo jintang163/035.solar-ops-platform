@@ -25,9 +25,12 @@ import com.solar.ops.prediction.mapper.InverterHealthMapper;
 import com.solar.ops.prediction.mapper.LifetimeAlertMapper;
 import com.solar.ops.prediction.mapper.LifetimePredictionMapper;
 import com.solar.ops.prediction.service.LifetimePredictionService;
+import com.solar.ops.prediction.service.PredictionInfluxDBService;
 import com.solar.ops.prediction.vo.LifetimeAlertVO;
 import com.solar.ops.prediction.vo.LifetimePredictionVO;
 import com.solar.ops.prediction.vo.SparePartAdviceVO;
+import com.solar.ops.workorder.entity.WorkOrder;
+import com.solar.ops.workorder.mapper.WorkOrderMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
@@ -67,6 +70,12 @@ public class LifetimePredictionServiceImpl extends ServiceImpl<LifetimePredictio
     private InverterMapper inverterMapper;
 
     @Autowired
+    private PredictionInfluxDBService predictionInfluxDBService;
+
+    @Autowired
+    private WorkOrderMapper workOrderMapper;
+
+    @Autowired
     private GrpcProperties grpcProperties;
 
     private String httpBaseUrl;
@@ -85,7 +94,8 @@ public class LifetimePredictionServiceImpl extends ServiceImpl<LifetimePredictio
                 LocalDate.now().minusDays(60), LocalDate.now());
 
         if (CollectionUtil.isEmpty(healthHistory) || healthHistory.size() < 30) {
-            return generateMockPrediction(stationId, inverterId, days);
+            throw new BusinessException("健康度历史数据不足，至少需要30天数据才能进行寿命预测。当前数据量: "
+                    + (healthHistory != null ? healthHistory.size() : 0) + "天");
         }
 
         try {
@@ -123,14 +133,12 @@ public class LifetimePredictionServiceImpl extends ServiceImpl<LifetimePredictio
                     .execute();
 
             if (!response.isOk()) {
-                log.warn("寿命预测服务调用失败: HTTP {}, 使用模拟数据", response.getStatus());
-                return generateMockPrediction(stationId, inverterId, days);
+                throw new BusinessException("寿命预测服务调用失败: HTTP " + response.getStatus());
             }
 
             JSONObject result = JSONUtil.parseObj(response.body());
             if (!result.getBool("success", false)) {
-                log.warn("寿命预测失败: {}, 使用模拟数据", result.getStr("message"));
-                return generateMockPrediction(stationId, inverterId, days);
+                throw new BusinessException("寿命预测失败: " + result.getStr("message"));
             }
 
             JSONObject data = result.getJSONObject("data");
@@ -153,13 +161,15 @@ public class LifetimePredictionServiceImpl extends ServiceImpl<LifetimePredictio
                     prediction.getCurrentHealthScore()));
             save(prediction);
 
-            generateLifetimeAlert(stationId, inverterId, prediction);
+            generateLifetimeAlert(stationId, inverterId, prediction, true);
 
             return convertToVO(prediction, inverterId);
 
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("寿命预测异常, 使用模拟数据: {}", e.getMessage());
-            return generateMockPrediction(stationId, inverterId, days);
+            log.error("寿命预测异常", e);
+            throw new BusinessException("寿命预测服务异常: " + e.getMessage());
         }
     }
 
@@ -174,7 +184,11 @@ public class LifetimePredictionServiceImpl extends ServiceImpl<LifetimePredictio
         return 1;
     }
 
-    private void generateLifetimeAlert(Long stationId, Long inverterId, LifetimePrediction prediction) {
+    private void generateLifetimeAlert(Long stationId, Long inverterId, LifetimePrediction prediction, boolean isRealPrediction) {
+        if (!isRealPrediction) {
+            return;
+        }
+
         if (prediction.getAlertLevel() >= 3) {
             LambdaQueryWrapper<LifetimeAlert> wrapper = new LambdaQueryWrapper<>();
             wrapper.eq(LifetimeAlert::getInverterId, inverterId)
@@ -211,45 +225,6 @@ public class LifetimePredictionServiceImpl extends ServiceImpl<LifetimePredictio
                 lifetimeAlertMapper.insert(alert);
             }
         }
-    }
-
-    private LifetimePredictionVO generateMockPrediction(Long stationId, Long inverterId, int forecastDays) {
-        Inverter inverter = inverterMapper.selectById(inverterId);
-
-        LifetimePredictionVO vo = new LifetimePredictionVO();
-        vo.setInverterId(inverterId);
-        vo.setInverterName(inverter != null ? inverter.getDeviceName() : "未知逆变器");
-        vo.setPredictionTime(LocalDateTime.now());
-        vo.setCurrentHealthScore(BigDecimal.valueOf(0.82));
-        vo.setHealthLevelDesc("良好");
-        vo.setHealthColor("#52c41a");
-        vo.setRemainingLifeDays(365);
-        vo.setRemainingLifeDesc("约1年");
-        vo.setForecastDays(forecastDays);
-        vo.setModelVersion("mock-v1.0");
-        vo.setReplacementAdvice(false);
-        vo.setAlertLevel(2);
-        vo.setAlertLevelDesc("注意");
-
-        List<String> timeAxis = new ArrayList<>();
-        List<BigDecimal> healthTrend = new ArrayList<>();
-        List<BigDecimal> confidenceTrend = new ArrayList<>();
-
-        LocalDate startDate = LocalDate.now();
-        double health = 0.82;
-        for (int i = 0; i < forecastDays; i++) {
-            timeAxis.add(startDate.plusDays(i).format(DateTimeFormatter.ofPattern("MM-dd")));
-            health = Math.max(0.3, health - 0.0015 - Math.random() * 0.001);
-            healthTrend.add(BigDecimal.valueOf(health).setScale(4, RoundingMode.HALF_UP));
-            double conf = Math.max(0.3, 1.0 - (double) i / forecastDays * 0.5);
-            confidenceTrend.add(BigDecimal.valueOf(conf).setScale(4, RoundingMode.HALF_UP));
-        }
-
-        vo.setTimeAxis(timeAxis);
-        vo.setHealthTrend(healthTrend);
-        vo.setConfidenceTrend(confidenceTrend);
-
-        return vo;
     }
 
     private LifetimePredictionVO convertToVO(LifetimePrediction prediction, Long inverterId) {
@@ -357,7 +332,7 @@ public class LifetimePredictionServiceImpl extends ServiceImpl<LifetimePredictio
         LifetimePrediction prediction = getOne(wrapper);
 
         if (prediction == null) {
-            return predictLifetime(stationId, inverterId, 90);
+            return null;
         }
 
         return convertToVO(prediction, inverterId);
@@ -446,6 +421,13 @@ public class LifetimePredictionServiceImpl extends ServiceImpl<LifetimePredictio
     @Override
     public SparePartAdviceVO getSparePartAdvice(Long stationId, Long inverterId) {
         LifetimePredictionVO prediction = getLatestPrediction(stationId, inverterId);
+        if (prediction == null) {
+            throw new BusinessException("暂无有效的寿命预测结果，无法提供备件建议");
+        }
+
+        if (prediction.getModelVersion() == null || prediction.getModelVersion().startsWith("mock")) {
+            throw new BusinessException("当前为演示数据，不提供备件建议。请等待真实预测结果生成后再试");
+        }
 
         try {
             JSONObject body = new JSONObject();
@@ -498,68 +480,72 @@ public class LifetimePredictionServiceImpl extends ServiceImpl<LifetimePredictio
                         vo.setSuggestions(suggestionList);
                     }
 
-                    return vo;
-                }
-            }
-        } catch (Exception e) {
-            log.warn("获取备件建议失败, 使用本地计算: {}", e.getMessage());
-        }
+                    if (vo.getReplacementAdvice() != null && vo.getReplacementAdvice()) {
+                        generateSparePartAlert(stationId, inverterId, vo);
+                    }
 
-        return generateMockSparePartAdvice(inverterId, prediction);
+                    return vo;
+                } else {
+                    throw new BusinessException("备件建议计算失败: " + result.getStr("message"));
+                }
+            } else {
+                throw new BusinessException("备件建议服务调用失败: HTTP " + response.getStatus());
+            }
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("获取备件建议失败", e);
+            throw new BusinessException("备件建议服务异常: " + e.getMessage());
+        }
     }
 
-    private SparePartAdviceVO generateMockSparePartAdvice(Long inverterId, LifetimePredictionVO prediction) {
-        SparePartAdviceVO vo = new SparePartAdviceVO();
-        vo.setInverterId(inverterId);
-        vo.setRemainingLifeDays(prediction.getRemainingLifeDays());
-        vo.setCurrentHealth(prediction.getCurrentHealthScore());
-        vo.setReplacementAdvice(prediction.getRemainingLifeDays() <= 90);
+    private void generateSparePartAlert(Long stationId, Long inverterId, SparePartAdviceVO advice) {
+        LambdaQueryWrapper<LifetimeAlert> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(LifetimeAlert::getInverterId, inverterId)
+                .eq(LifetimeAlert::getStatus, 0)
+                .eq(LifetimeAlert::getAlertType, 2)
+                .orderByDesc(LifetimeAlert::getAlertTime)
+                .last("LIMIT 1");
+        LifetimeAlert existingAlert = lifetimeAlertMapper.selectOne(wrapper);
 
-        List<SparePartAdviceVO.WarningItem> warnings = new ArrayList<>();
-        if (prediction.getRemainingLifeDays() <= 90) {
-            SparePartAdviceVO.WarningItem warning = new SparePartAdviceVO.WarningItem();
-            warning.setLevel("critical");
-            warning.setMessage("设备剩余寿命不足3个月，建议立即安排备件更换");
-            warning.setSparePart("逆变器整机");
-            warning.setUrgency("high");
-            warnings.add(warning);
-        } else if (prediction.getRemainingLifeDays() <= 180) {
-            SparePartAdviceVO.WarningItem warning = new SparePartAdviceVO.WarningItem();
-            warning.setLevel("warning");
-            warning.setMessage("设备剩余寿命不足6个月，建议提前备库");
-            warning.setSparePart("逆变器整机");
-            warning.setUrgency("medium");
-            warnings.add(warning);
+        if (existingAlert == null ||
+                existingAlert.getAlertTime().isBefore(LocalDateTime.now().minusDays(7))) {
+            LifetimeAlert alert = new LifetimeAlert();
+            alert.setStationId(stationId);
+            alert.setInverterId(inverterId);
+            alert.setAlertTime(LocalDateTime.now());
+            alert.setAlertType(2);
+            alert.setAlertLevel(advice.getRemainingLifeDays() <= 30 ? 4 : 3);
+            alert.setAlertTitle("备件更换建议");
+            alert.setAlertContent("根据寿命预测结果，建议提前准备备件更换。剩余寿命约" + advice.getRemainingLifeDays() + "天");
+            alert.setRemainingLifeDays(advice.getRemainingLifeDays());
+            alert.setCurrentHealth(advice.getCurrentHealth());
+
+            if (advice.getSuggestions() != null && !advice.getSuggestions().isEmpty()) {
+                String parts = advice.getSuggestions().stream()
+                        .map(SparePartAdviceVO.SuggestionItem::getComponent)
+                        .collect(Collectors.joining(", "));
+                alert.setSparePart(parts);
+
+                BigDecimal totalCost = advice.getSuggestions().stream()
+                        .map(s -> {
+                            try {
+                                String costStr = s.getEstimatedCost() != null
+                                        ? s.getEstimatedCost().replaceAll("[^0-9.]", "") : "0";
+                                return new BigDecimal(costStr);
+                            } catch (Exception e) {
+                                return BigDecimal.ZERO;
+                            }
+                        })
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                alert.setEstimatedCost(totalCost);
+            } else {
+                alert.setSparePart("逆变器整机");
+            }
+
+            alert.setStatus(0);
+            lifetimeAlertMapper.insert(alert);
         }
-        vo.setWarnings(warnings);
-
-        List<SparePartAdviceVO.SuggestionItem> suggestions = new ArrayList<>();
-        if (prediction.getCurrentHealthScore().compareTo(BigDecimal.valueOf(0.5)) < 0) {
-            SparePartAdviceVO.SuggestionItem s1 = new SparePartAdviceVO.SuggestionItem();
-            s1.setComponent("IGBT模块");
-            s1.setReason("温度异常，效率下降明显");
-            s1.setRecommendation("检查散热系统，必要时更换IGBT");
-            s1.setEstimatedCost("¥15,000-30,000");
-            suggestions.add(s1);
-        }
-        if (prediction.getCurrentHealthScore().compareTo(BigDecimal.valueOf(0.7)) < 0) {
-            SparePartAdviceVO.SuggestionItem s2 = new SparePartAdviceVO.SuggestionItem();
-            s2.setComponent("电解电容");
-            s2.setReason("长期高温运行可能导致电容老化");
-            s2.setRecommendation("检测电容容值，考虑预防性更换");
-            s2.setEstimatedCost("¥2,000-5,000");
-            suggestions.add(s2);
-
-            SparePartAdviceVO.SuggestionItem s3 = new SparePartAdviceVO.SuggestionItem();
-            s3.setComponent("散热风扇");
-            s3.setReason("散热不良加速设备老化");
-            s3.setRecommendation("清洁或更换散热风扇");
-            s3.setEstimatedCost("¥500-1,500");
-            suggestions.add(s3);
-        }
-        vo.setSuggestions(suggestions);
-
-        return vo;
     }
 
     @Override
@@ -692,27 +678,85 @@ public class LifetimePredictionServiceImpl extends ServiceImpl<LifetimePredictio
         health.setStationId(stationId);
         health.setInverterId(inverterId);
         health.setRecordDate(date);
-        health.setAvgTemperature(BigDecimal.valueOf(35 + Math.random() * 10));
-        health.setMaxTemperature(BigDecimal.valueOf(45 + Math.random() * 10));
-        health.setOperatingHours(BigDecimal.valueOf(8 + Math.random() * 4));
-        health.setFaultCount(Math.random() > 0.9 ? 1 : 0);
-        health.setFaultSeverity(health.getFaultCount() > 0 ? (int) (Math.random() * 3 + 1) : 0);
-        health.setOutputPowerRatio(BigDecimal.valueOf(0.85 + Math.random() * 0.15));
-        health.setEfficiencyDrop(BigDecimal.valueOf(Math.random() * 5));
         health.setAssessmentTime(LocalDateTime.now());
+
+        Map<String, Object> dailyData = predictionInfluxDBService.fetchDailyInverterData(inverterId, date);
+
+        Double avgTemp = (Double) dailyData.get("avg_temp");
+        Double maxTemp = (Double) dailyData.get("max_temp");
+        Double operatingHours = (Double) dailyData.get("operating_hours");
+        Double avgPower = (Double) dailyData.get("avg_power");
+        Double maxPower = (Double) dailyData.get("max_power");
+
+        if (avgTemp != null) {
+            health.setAvgTemperature(BigDecimal.valueOf(avgTemp).setScale(2, RoundingMode.HALF_UP));
+        }
+        if (maxTemp != null) {
+            health.setMaxTemperature(BigDecimal.valueOf(maxTemp).setScale(2, RoundingMode.HALF_UP));
+        }
+        if (operatingHours != null) {
+            health.setOperatingHours(BigDecimal.valueOf(operatingHours).setScale(2, RoundingMode.HALF_UP));
+        }
+
+        LocalDateTime startOfDay = date.atStartOfDay();
+        LocalDateTime endOfDay = date.atTime(23, 59, 59);
+        LambdaQueryWrapper<WorkOrder> faultWrapper = new LambdaQueryWrapper<>();
+        faultWrapper.eq(WorkOrder::getInverterId, inverterId)
+                .ge(WorkOrder::getCreateTime, startOfDay)
+                .le(WorkOrder::getCreateTime, endOfDay);
+        List<WorkOrder> dailyFaults = workOrderMapper.selectList(faultWrapper);
+
+        if (dailyFaults != null && !dailyFaults.isEmpty()) {
+            health.setFaultCount(dailyFaults.size());
+            int maxSeverity = dailyFaults.stream()
+                    .mapToInt(f -> f.getFaultLevel() != null ? f.getFaultLevel() : 0)
+                    .max()
+                    .orElse(0);
+            health.setFaultSeverity(maxSeverity);
+        } else {
+            health.setFaultCount(0);
+            health.setFaultSeverity(0);
+        }
+
+        Inverter inverter = inverterMapper.selectById(inverterId);
+        if (inverter != null && inverter.getRatedPower() != null && avgPower != null) {
+            double ratedPower = inverter.getRatedPower().doubleValue();
+            if (ratedPower > 0) {
+                double powerRatio = Math.min(1.0, avgPower / ratedPower);
+                health.setOutputPowerRatio(BigDecimal.valueOf(powerRatio).setScale(4, RoundingMode.HALF_UP));
+            }
+        }
+
+        if (maxPower != null && avgPower != null && maxPower > 0) {
+            double efficiencyDrop = Math.max(0, (maxPower - avgPower) / maxPower * 100);
+            health.setEfficiencyDrop(BigDecimal.valueOf(efficiencyDrop).setScale(2, RoundingMode.HALF_UP));
+        }
+
+        boolean hasValidData = health.getAvgTemperature() != null
+                || health.getOperatingHours() != null
+                || health.getFaultCount() > 0;
+
+        if (!hasValidData) {
+            throw new BusinessException("当日无有效的逆变器时序数据和故障记录，无法计算健康度");
+        }
 
         try {
             JSONObject body = new JSONObject();
             body.set("inverter_id", inverterId);
-            JSONObject dailyData = new JSONObject();
-            dailyData.set("avg_temperature", health.getAvgTemperature().doubleValue());
-            dailyData.set("max_temperature", health.getMaxTemperature().doubleValue());
-            dailyData.set("operating_hours", health.getOperatingHours().doubleValue());
-            dailyData.set("fault_count", health.getFaultCount());
-            dailyData.set("fault_severity", health.getFaultSeverity());
-            dailyData.set("output_power_ratio", health.getOutputPowerRatio().doubleValue());
-            dailyData.set("efficiency_drop", health.getEfficiencyDrop().doubleValue());
-            body.set("daily_data", dailyData);
+            JSONObject dailyDataJson = new JSONObject();
+            dailyDataJson.set("avg_temperature", health.getAvgTemperature() != null
+                    ? health.getAvgTemperature().doubleValue() : 25.0);
+            dailyDataJson.set("max_temperature", health.getMaxTemperature() != null
+                    ? health.getMaxTemperature().doubleValue() : 30.0);
+            dailyDataJson.set("operating_hours", health.getOperatingHours() != null
+                    ? health.getOperatingHours().doubleValue() : 0.0);
+            dailyDataJson.set("fault_count", health.getFaultCount() != null ? health.getFaultCount() : 0);
+            dailyDataJson.set("fault_severity", health.getFaultSeverity() != null ? health.getFaultSeverity() : 0);
+            dailyDataJson.set("output_power_ratio", health.getOutputPowerRatio() != null
+                    ? health.getOutputPowerRatio().doubleValue() : 1.0);
+            dailyDataJson.set("efficiency_drop", health.getEfficiencyDrop() != null
+                    ? health.getEfficiencyDrop().doubleValue() : 0.0);
+            body.set("daily_data", dailyDataJson);
 
             HttpResponse response = HttpRequest.post(httpBaseUrl + "/lifetime/health_score")
                     .body(body.toString())
@@ -723,34 +767,21 @@ public class LifetimePredictionServiceImpl extends ServiceImpl<LifetimePredictio
                 JSONObject result = JSONUtil.parseObj(response.body());
                 if (result.getBool("success", false)) {
                     health.setHealthScore(BigDecimal.valueOf(result.getDouble("health_score", 0.8)));
+                } else {
+                    throw new BusinessException("健康度评分计算失败: " + result.getStr("message"));
                 }
+            } else {
+                throw new BusinessException("健康度评分服务调用失败: HTTP " + response.getStatus());
             }
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
-            log.warn("健康度评分计算服务调用失败，使用本地计算: {}", e.getMessage());
+            log.error("健康度评分计算服务调用失败", e);
+            throw new BusinessException("健康度评分服务不可用，请稍后重试");
         }
 
         if (health.getHealthScore() == null) {
-            double tempScore = 1.0;
-            double avgTemp = health.getAvgTemperature().doubleValue();
-            if (avgTemp > 50) {
-                tempScore = Math.max(0.5, 1.0 - (avgTemp - 50) * 0.02);
-            } else if (avgTemp > 40) {
-                tempScore = Math.max(0.7, 1.0 - (avgTemp - 40) * 0.03);
-            }
-
-            double faultScore = 1.0;
-            int faultCount = health.getFaultCount() != null ? health.getFaultCount() : 0;
-            int faultSeverity = health.getFaultSeverity() != null ? health.getFaultSeverity() : 0;
-            if (faultCount > 0) {
-                double faultPenalty = faultCount * 0.05 + faultSeverity * 0.1;
-                faultScore = Math.max(0.3, 1.0 - faultPenalty);
-            }
-
-            double efficiencyScore = health.getOutputPowerRatio().doubleValue();
-
-            double healthScore = tempScore * 0.25 + faultScore * 0.3 + efficiencyScore * 0.3 + 0.85 * 0.15;
-            health.setHealthScore(BigDecimal.valueOf(Math.max(0.0, Math.min(1.0, healthScore)))
-                    .setScale(4, RoundingMode.HALF_UP));
+            throw new BusinessException("健康度评分计算失败，无有效结果");
         }
 
         inverterHealthMapper.insert(health);
