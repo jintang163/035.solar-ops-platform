@@ -231,13 +231,16 @@ public class DroneInspectionImageServiceImpl extends ServiceImpl<DroneInspection
             }
 
             byte[] imageData = Files.readAllBytes(imageFile.toPath());
-            List<DroneDefect> defects = defectDetectClient.detectDefects(
+            DefectDetectClient.DetectResult detectResult = defectDetectClient.detectAndSave(
                     imageData,
                     image.getImageName(),
                     image.getImageType(),
                     image.getTaskId(),
-                    imageId
+                    imageId,
+                    image.getStationId()
             );
+
+            List<DroneDefect> defects = detectResult.getDefects();
 
             LambdaQueryWrapper<DroneDefect> wrapper = new LambdaQueryWrapper<>();
             wrapper.eq(DroneDefect::getImageId, imageId);
@@ -247,39 +250,104 @@ public class DroneInspectionImageServiceImpl extends ServiceImpl<DroneInspection
                 defectMapper.insert(defect);
             }
 
-            DroneProperties.ImageStorage storage = droneProperties.getImageStorage();
-            String annotatedPath = defectDetectClient.getAnnotatedImagePath(image.getImageName());
-            if (annotatedPath != null) {
-                String relativeAnnotatedPath = annotatedPath.substring(storage.getAnnotatedPath().length());
-                String annotatedUrl = storage.getBaseUrl() + "/annotated" + relativeAnnotatedPath;
-                image.setAnnotatedImageUrl(annotatedUrl);
+            if (detectResult.getAnnotatedImagePath() != null) {
+                image.setAnnotatedPath(detectResult.getAnnotatedImagePath());
+            }
+            if (detectResult.getAnnotatedImageUrl() != null) {
+                image.setAnnotatedImageUrl(detectResult.getAnnotatedImageUrl());
+            }
+            if (detectResult.getImageWidth() != null) {
+                image.setImageWidth(detectResult.getImageWidth());
+            }
+            if (detectResult.getImageHeight() != null) {
+                image.setImageHeight(detectResult.getImageHeight());
             }
 
             image.setDetectStatus(DetectStatusEnum.COMPLETED.getCode());
             image.setDetectEndTime(LocalDateTime.now());
+            image.setDetectTime(LocalDateTime.now());
             image.setDefectCount(defects.size());
             image.setDetectResult(defects.size() > 0 ? "检测到" + defects.size() + "处缺陷" : "未检测到缺陷");
             this.updateById(image);
 
             if (image.getTaskId() != null) {
-                DroneInspectionTask task = taskMapper.selectById(image.getTaskId());
-                if (task != null) {
-                    LambdaQueryWrapper<DroneInspectionImage> taskImageWrapper = new LambdaQueryWrapper<>();
-                    taskImageWrapper.eq(DroneInspectionImage::getTaskId, image.getTaskId());
-                    taskImageWrapper.ne(DroneInspectionImage::getDetectStatus, DetectStatusEnum.COMPLETED.getCode());
-                    Long pendingCount = this.count(taskImageWrapper);
-                    if (pendingCount == 0) {
-                        task.setStatus(TaskStatusEnum.COMPLETED.getCode());
-                        taskMapper.updateById(task);
-                    }
-                }
+                updateTaskDetectionStats(image.getTaskId());
+            }
+
+            if (defects.size() > 0) {
+                pushDefectAlert(image, defects);
             }
 
         } catch (Exception e) {
-            log.error("缺陷检测失败", e);
+            log.error("缺陷检测失败, imageId: {}", imageId, e);
             image.setDetectStatus(DetectStatusEnum.FAILED.getCode());
             image.setDetectResult("检测失败: " + e.getMessage());
             this.updateById(image);
+        }
+    }
+
+    private void updateTaskDetectionStats(Long taskId) {
+        try {
+            DroneInspectionTask task = taskMapper.selectById(taskId);
+            if (task == null) return;
+
+            LambdaQueryWrapper<DroneInspectionImage> allImagesWrapper = new LambdaQueryWrapper<>();
+            allImagesWrapper.eq(DroneInspectionImage::getTaskId, taskId);
+            Long totalImageCount = this.count(allImagesWrapper);
+
+            LambdaQueryWrapper<DroneInspectionImage> completedImagesWrapper = new LambdaQueryWrapper<>();
+            completedImagesWrapper.eq(DroneInspectionImage::getTaskId, taskId);
+            completedImagesWrapper.eq(DroneInspectionImage::getDetectStatus, DetectStatusEnum.COMPLETED.getCode());
+            Long detectedImageCount = this.count(completedImagesWrapper);
+
+            LambdaQueryWrapper<DroneDefect> allDefectsWrapper = new LambdaQueryWrapper<>();
+            allDefectsWrapper.eq(DroneDefect::getTaskId, taskId);
+            Long totalDefectCount = defectMapper.selectCount(allDefectsWrapper);
+
+            LambdaQueryWrapper<DroneDefect> confirmedDefectsWrapper = new LambdaQueryWrapper<>();
+            confirmedDefectsWrapper.eq(DroneDefect::getTaskId, taskId);
+            confirmedDefectsWrapper.eq(DroneDefect::getConfirmed, 1);
+            Long confirmedDefectCount = defectMapper.selectCount(confirmedDefectsWrapper);
+
+            task.setImageCount(totalImageCount.intValue());
+            task.setDetectedImageCount(detectedImageCount.intValue());
+            task.setDefectCount(totalDefectCount.intValue());
+            task.setConfirmedDefectCount(confirmedDefectCount.intValue());
+
+            LambdaQueryWrapper<DroneInspectionImage> pendingWrapper = new LambdaQueryWrapper<>();
+            pendingWrapper.eq(DroneInspectionImage::getTaskId, taskId);
+            pendingWrapper.ne(DroneInspectionImage::getDetectStatus, DetectStatusEnum.COMPLETED.getCode());
+            Long pendingCount = this.count(pendingWrapper);
+
+            if (pendingCount == 0 && totalImageCount > 0) {
+                task.setStatus(TaskStatusEnum.COMPLETED.getCode());
+            } else if (detectedImageCount > 0) {
+                task.setStatus(TaskStatusEnum.PROCESSING.getCode());
+            }
+
+            taskMapper.updateById(task);
+        } catch (Exception e) {
+            log.error("更新任务检测统计失败, taskId: {}", taskId, e);
+        }
+    }
+
+    private void pushDefectAlert(DroneInspectionImage image, List<DroneDefect> defects) {
+        try {
+            int seriousCount = 0;
+            for (DroneDefect defect : defects) {
+                if (defect.getDefectLevel() != null && defect.getDefectLevel() >= 3) {
+                    seriousCount++;
+                }
+            }
+
+            if (seriousCount == 0) {
+                return;
+            }
+
+            log.info("检测到严重缺陷, imageId: {}, 严重缺陷数: {}", image.getId(), seriousCount);
+
+        } catch (Exception e) {
+            log.warn("推送缺陷告警失败", e);
         }
     }
 

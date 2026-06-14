@@ -69,6 +69,15 @@ spring:
             enable: true
             required: true
 
+  rocketmq:
+    name-server: 127.0.0.1:9876
+    producer:
+      group: analysis-producer-group
+      send-message-timeout: 3000
+      retry-times-when-send-failed: 2
+    consumer:
+      group: analysis-consumer-group
+
 influxdb:
   url: http://localhost:8086
   username: admin
