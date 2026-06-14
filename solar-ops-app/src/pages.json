@@ -34,6 +34,14 @@
       }
     },
     {
+      "path": "pages/prediction/prediction",
+      "style": {
+        "navigationBarTitleText": "功率预测",
+        "enablePullDownRefresh": true,
+        "backgroundTextStyle": "dark"
+      }
+    },
+    {
       "path": "pages/workorder/workorder",
       "style": {
         "navigationBarTitleText": "工单管理"

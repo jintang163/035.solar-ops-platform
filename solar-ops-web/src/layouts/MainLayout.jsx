@@ -13,7 +13,8 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   AppstoreOutlined,
-  QrcodeOutlined
+  QrcodeOutlined,
+  RiseOutlined
 } from '@ant-design/icons'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { getUser, clearAuth } from '../utils/auth'
@@ -56,6 +57,17 @@ const menuItems = [
       {
         key: '/efficiency/analysis',
         label: '效率分析'
+      }
+    ]
+  },
+  {
+    key: '/prediction',
+    icon: <RiseOutlined />,
+    label: '功率预测',
+    children: [
+      {
+        key: '/prediction/power',
+        label: '预测与偏差分析'
       }
     ]
   },

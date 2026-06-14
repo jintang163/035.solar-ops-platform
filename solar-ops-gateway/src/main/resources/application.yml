@@ -107,6 +107,14 @@ spring:
             - AuthFilter
             - RewritePath=/api/workorder/(?<segment>.*), /workorder/api/workorder/$\{segment}
 
+        - prediction-api
+          uri: http://localhost:8084
+          predicates:
+            - Path=/api/prediction/**
+          filters:
+            - AuthFilter
+            - RewritePath=/api/prediction/(?<segment>.*), /prediction/api/prediction/$\{segment}
+
 jwt:
   secret: solar-ops-platform-secret-key-2024
   expiration: 86400000

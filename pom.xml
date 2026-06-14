@@ -17,6 +17,7 @@
         <module>solar-ops-admin</module>
         <module>solar-ops-analysis</module>
         <module>solar-ops-workorder</module>
+        <module>solar-ops-prediction</module>
         <module>solar-ops-gateway</module>
     </modules>
 
@@ -39,6 +40,8 @@
         <redisson.version>3.21.3</redisson.version>
         <knife4j.version>4.3.0</knife4j.version>
         <jjwt.version>0.9.1</jjwt.version>
+        <grpc.version>1.59.0</grpc.version>
+        <protobuf.version>3.25.1</protobuf.version>
     </properties>
 
     <dependencyManagement>
@@ -101,6 +104,27 @@
                 <groupId>io.jsonwebtoken</groupId>
                 <artifactId>jjwt</artifactId>
                 <version>${jjwt.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-netty-shaded</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-protobuf</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-stub</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.protobuf</groupId>
+                <artifactId>protobuf-java</artifactId>
+                <version>${protobuf.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
