@@ -1,0 +1,70 @@
+package com.solar.ops.prediction.vo;
+
+import io.swagger.annotations.ApiModel;
+import io.swagger.annotations.ApiModelProperty;
+import lombok.Data;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@Data
+@ApiModel(value = "寿命预警VO")
+public class LifetimeAlertVO {
+
+    @ApiModelProperty(value = "预警ID")
+    private Long id;
+
+    @ApiModelProperty(value = "电站ID")
+    private Long stationId;
+
+    @ApiModelProperty(value = "电站名称")
+    private String stationName;
+
+    @ApiModelProperty(value = "逆变器ID")
+    private Long inverterId;
+
+    @ApiModelProperty(value = "逆变器名称")
+    private String inverterName;
+
+    @ApiModelProperty(value = "预警时间")
+    private LocalDateTime alertTime;
+
+    @ApiModelProperty(value = "预警类型：1-寿命预警 2-备件更换建议")
+    private Integer alertType;
+
+    @ApiModelProperty(value = "预警类型描述")
+    private String alertTypeDesc;
+
+    @ApiModelProperty(value = "预警级别：1-低 2-中 3-高 4-紧急")
+    private Integer alertLevel;
+
+    @ApiModelProperty(value = "预警级别描述")
+    private String alertLevelDesc;
+
+    @ApiModelProperty(value = "预警级别颜色")
+    private String alertLevelColor;
+
+    @ApiModelProperty(value = "预警标题")
+    private String alertTitle;
+
+    @ApiModelProperty(value = "预警内容")
+    private String alertContent;
+
+    @ApiModelProperty(value = "剩余寿命(天)")
+    private Integer remainingLifeDays;
+
+    @ApiModelProperty(value = "当前健康度")
+    private BigDecimal currentHealth;
+
+    @ApiModelProperty(value = "建议备件")
+    private String sparePart;
+
+    @ApiModelProperty(value = "预估费用")
+    private BigDecimal estimatedCost;
+
+    @ApiModelProperty(value = "状态：0-未处理 1-已处理 2-已忽略")
+    private Integer status;
+
+    @ApiModelProperty(value = "状态描述")
+    private String statusDesc;
+}

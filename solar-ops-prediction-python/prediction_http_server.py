@@ -14,6 +14,7 @@ from urllib.parse import urlparse, parse_qs
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from solar_power_model import SolarPowerModel
+from lifetime_prediction_model import LifetimePredictionModel
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,6 +23,7 @@ logging.basicConfig(
 logger = logging.getLogger("http_prediction_server")
 
 model = SolarPowerModel(model_dir="./models")
+lifetime_model = LifetimePredictionModel(model_dir="./models/lifetime")
 
 
 class PredictionHandler(BaseHTTPRequestHandler):
@@ -57,6 +59,14 @@ class PredictionHandler(BaseHTTPRequestHandler):
             self._send_json(status)
             return
 
+        if path == "/lifetime/model_status":
+            params = parse_qs(parsed.query)
+            inverter_id = int(params.get("inverter_id", [0])[0])
+
+            status = lifetime_model.get_model_status(inverter_id)
+            self._send_json(status)
+            return
+
         self._send_json({"success": False, "message": "Not found"}, 404)
 
     def do_POST(self):
@@ -77,6 +87,22 @@ class PredictionHandler(BaseHTTPRequestHandler):
 
         if path == "/train":
             self._handle_train(data)
+            return
+
+        if path == "/lifetime/predict":
+            self._handle_lifetime_predict(data)
+            return
+
+        if path == "/lifetime/train":
+            self._handle_lifetime_train(data)
+            return
+
+        if path == "/lifetime/health_score":
+            self._handle_lifetime_health_score(data)
+            return
+
+        if path == "/lifetime/spare_part_advice":
+            self._handle_spare_part_advice(data)
             return
 
         self._send_json({"success": False, "message": "Not found"}, 404)
@@ -140,6 +166,79 @@ class PredictionHandler(BaseHTTPRequestHandler):
             "model_version": "",
             "train_score": float(train_score),
             "validation_score": float(val_score)
+        })
+
+    def _handle_lifetime_predict(self, data):
+        inverter_id = data.get("inverter_id", 0)
+        recent_data = data.get("recent_data", [])
+        forecast_days = data.get("forecast_days", 90)
+
+        logger.info(f"收到寿命预测请求: inverter={inverter_id}, days={len(recent_data)}, forecast_days={forecast_days}")
+
+        result, _, version = lifetime_model.predict(inverter_id, recent_data, forecast_days)
+
+        if result is None:
+            self._send_json({
+                "success": False,
+                "message": version or "预测失败",
+                "model_version": ""
+            })
+            return
+
+        logger.info(f"寿命预测成功: inverter={inverter_id}, 剩余寿命={result['remaining_life_days']}天")
+        self._send_json({
+            "success": True,
+            "message": "预测成功",
+            "model_version": result.get("model_version", ""),
+            "data": result
+        })
+
+    def _handle_lifetime_train(self, data):
+        inverter_id = data.get("inverter_id", 0)
+        training_data = data.get("training_data", [])
+        model_version = data.get("model_version")
+
+        logger.info(f"收到寿命模型训练请求: inverter={inverter_id}, samples={len(training_data)}")
+
+        success, message, train_score, val_score = lifetime_model.train(
+            inverter_id, training_data, model_version
+        )
+
+        logger.info(f"寿命模型训练完成: success={success}, train_score={train_score:.4f}, val_score={val_score:.4f}")
+
+        self._send_json({
+            "success": success,
+            "message": message,
+            "model_version": "",
+            "train_score": float(train_score),
+            "validation_score": float(val_score)
+        })
+
+    def _handle_lifetime_health_score(self, data):
+        inverter_id = data.get("inverter_id", 0)
+        daily_data = data.get("daily_data", {})
+
+        score = lifetime_model.calculate_health_score(inverter_id, daily_data)
+
+        self._send_json({
+            "success": True,
+            "message": "计算成功",
+            "health_score": float(score)
+        })
+
+    def _handle_spare_part_advice(self, data):
+        inverter_id = data.get("inverter_id", 0)
+        remaining_life_days = data.get("remaining_life_days", 365)
+        current_health = data.get("current_health", 0.8)
+
+        advice = lifetime_model.get_spare_part_advice(
+            inverter_id, remaining_life_days, current_health
+        )
+
+        self._send_json({
+            "success": True,
+            "message": "获取成功",
+            "data": advice
         })
 
     def log_message(self, format, *args):

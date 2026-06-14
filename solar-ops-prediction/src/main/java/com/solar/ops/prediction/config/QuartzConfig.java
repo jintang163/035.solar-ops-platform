@@ -1,6 +1,7 @@
 package com.solar.ops.prediction.config;
 
 import com.solar.ops.prediction.job.DeviationCheckJob;
+import com.solar.ops.prediction.job.LifetimePredictionJob;
 import com.solar.ops.prediction.job.PredictionJob;
 import org.quartz.*;
 import org.springframework.context.annotation.Bean;
@@ -41,6 +42,24 @@ public class QuartzConfig {
         return TriggerBuilder.newTrigger()
                 .forJob(deviationCheckJobDetail())
                 .withIdentity("deviationCheckJobTrigger")
+                .withSchedule(scheduleBuilder)
+                .build();
+    }
+
+    @Bean
+    public JobDetail lifetimePredictionJobDetail() {
+        return JobBuilder.newJob(LifetimePredictionJob.class)
+                .withIdentity("lifetimePredictionJob")
+                .storeDurably()
+                .build();
+    }
+
+    @Bean
+    public Trigger lifetimePredictionJobTrigger() {
+        CronScheduleBuilder scheduleBuilder = CronScheduleBuilder.cronSchedule("0 0 2 * * ?");
+        return TriggerBuilder.newTrigger()
+                .forJob(lifetimePredictionJobDetail())
+                .withIdentity("lifetimePredictionJobTrigger")
                 .withSchedule(scheduleBuilder)
                 .build();
     }

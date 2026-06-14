@@ -77,3 +77,74 @@ export function countPendingAlerts(stationId) {
     params: stationId ? { stationId } : {}
   })
 }
+
+export function getLifetimePrediction(params) {
+  return request({
+    url: '/api/lifetime/predict',
+    method: 'get',
+    params
+  })
+}
+
+export function getLatestLifetimePrediction(stationId, inverterId) {
+  return request({
+    url: `/api/lifetime/latest/${stationId}/${inverterId}`,
+    method: 'get'
+  })
+}
+
+export function getLifetimePredictionHistory(params) {
+  return request({
+    url: '/api/lifetime/history',
+    method: 'get',
+    params
+  })
+}
+
+export function getHealthHistory(params) {
+  return request({
+    url: '/api/lifetime/health/history',
+    method: 'get',
+    params
+  })
+}
+
+export function triggerLifetimeTraining(data) {
+  return request({
+    url: '/api/lifetime/train',
+    method: 'post',
+    params: data
+  })
+}
+
+export function getSparePartAdvice(params) {
+  return request({
+    url: '/api/lifetime/spare-part/advice',
+    method: 'get',
+    params
+  })
+}
+
+export function queryLifetimeAlerts(params) {
+  return request({
+    url: '/api/lifetime/alert/list',
+    method: 'get',
+    params
+  })
+}
+
+export function handleLifetimeAlert(alertId, data) {
+  return request({
+    url: `/api/lifetime/alert/handle/${alertId}`,
+    method: 'post',
+    params: data
+  })
+}
+
+export function countLifetimePendingAlerts(stationId) {
+  return request({
+    url: '/api/lifetime/alert/pending/count',
+    method: 'get',
+    params: stationId ? { stationId } : {}
+  })
+}

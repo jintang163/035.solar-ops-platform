@@ -12,6 +12,7 @@ import AssetList from '../pages/asset/AssetList'
 import AssetDetail from '../pages/asset/AssetDetail'
 import QrCodeManager from '../pages/asset/QrCodeManager'
 import PowerPrediction from '../pages/prediction/PowerPrediction'
+import DeviceLifetime from '../pages/prediction/DeviceLifetime'
 import DroneInspectionList from '../pages/drone/DroneInspectionList'
 import DroneDefectList from '../pages/drone/DroneDefectList'
 
@@ -30,6 +31,7 @@ const routes = [
       { path: 'station/list', element: <StationList /> },
       { path: 'efficiency/analysis', element: <EfficiencyAnalysis /> },
       { path: 'prediction/power', element: <PowerPrediction /> },
+      { path: 'prediction/lifetime', element: <DeviceLifetime /> },
       { path: 'asset/list', element: <AssetList /> },
       { path: 'asset/detail/:id', element: <AssetDetail /> },
       { path: 'asset/qrcode', element: <QrCodeManager /> },

@@ -65,11 +65,15 @@ const menuItems = [
   {
     key: '/prediction',
     icon: <RiseOutlined />,
-    label: '功率预测',
+    label: '智能预测',
     children: [
       {
         key: '/prediction/power',
-        label: '预测与偏差分析'
+        label: '功率预测'
+      },
+      {
+        key: '/prediction/lifetime',
+        label: '设备寿命预测'
       }
     ]
   },

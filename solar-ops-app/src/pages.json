@@ -42,6 +42,14 @@
       }
     },
     {
+      "path": "pages/lifetime/lifetime",
+      "style": {
+        "navigationBarTitleText": "设备寿命预测",
+        "enablePullDownRefresh": true,
+        "backgroundTextStyle": "dark"
+      }
+    },
+    {
       "path": "pages/workorder/workorder",
       "style": {
         "navigationBarTitleText": "工单管理"
