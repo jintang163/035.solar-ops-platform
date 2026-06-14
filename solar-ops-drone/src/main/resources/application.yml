@@ -1,0 +1,95 @@
+server:
+  port: 8085
+  servlet:
+    context-path: /drone
+
+spring:
+  application:
+    name: solar-ops-drone
+
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/solar_ops?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    druid:
+      initial-size: 5
+      min-idle: 5
+      max-active: 20
+      max-wait: 60000
+      time-between-eviction-runs-millis: 60000
+      min-evictable-idle-time-millis: 300000
+      validation-query: SELECT 1 FROM DUAL
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+
+  redis:
+    host: localhost
+    port: 6379
+    password:
+    database: 0
+    timeout: 3000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-wait: -1ms
+        max-idle: 8
+        min-idle: 0
+
+  rocketmq:
+    name-server: localhost:9876
+    producer:
+      group: drone-producer-group
+    consumer:
+      group: drone-consumer-group
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.solar.ops.drone.entity,com.solar.ops.admin.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: false
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+knife4j:
+  enable: true
+  openapi:
+    title: 无人机巡检模块API
+    description: 光伏电站无人机智能巡检模块接口文档
+    email: support@solar.com
+    concat: solar-ops
+    version: 1.0.0
+    terms-of-service-url: http://www.solar.com
+
+drone:
+  ai-service:
+    host: 127.0.0.1
+    port: 50053
+    timeout: 60000
+  image-storage:
+    path: ./data/drone/images
+    annotated-path: ./data/drone/annotated
+    allowed-types:
+      - image/jpeg
+      - image/png
+      - image/jpg
+      - image/tiff
+  defect-level-threshold:
+    hot-spot:
+      warning: 50
+      danger: 70
+  websocket:
+    endpoint: /ws/drone

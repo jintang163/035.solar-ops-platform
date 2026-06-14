@@ -48,6 +48,11 @@
           <view class="menu-title">电站管理</view>
           <view class="menu-arrow">›</view>
         </view>
+        <view class="menu-item" @click="goToPage('drone')">
+          <view class="menu-icon">🚁</view>
+          <view class="menu-title">无人机巡检</view>
+          <view class="menu-arrow">›</view>
+        </view>
       </view>
       
       <view class="menu-group">
@@ -141,10 +146,15 @@ function goToSetting() {
 
 function goToPage(page) {
   const pageMap = {
-    workorder: '/pages/workorder/workorder'
+    workorder: '/pages/workorder/workorder',
+    drone: '/pages/drone/drone'
   }
   if (pageMap[page]) {
-    uni.switchTab({ url: pageMap[page] })
+    if (page === 'workorder') {
+      uni.switchTab({ url: pageMap[page] })
+    } else {
+      uni.navigateTo({ url: pageMap[page] })
+    }
   } else {
     uni.showToast({ title: '功能开发中', icon: 'none' })
   }

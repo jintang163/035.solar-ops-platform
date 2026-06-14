@@ -115,6 +115,14 @@ spring:
             - AuthFilter
             - RewritePath=/api/prediction/(?<segment>.*), /prediction/api/prediction/$\{segment}
 
+        - drone-api
+          uri: http://localhost:8085
+          predicates:
+            - Path=/api/drone/**
+          filters:
+            - AuthFilter
+            - RewritePath=/api/drone/(?<segment>.*), /drone/api/drone/$\{segment}
+
 jwt:
   secret: solar-ops-platform-secret-key-2024
   expiration: 86400000

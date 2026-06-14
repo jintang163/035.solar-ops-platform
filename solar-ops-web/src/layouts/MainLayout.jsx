@@ -14,7 +14,9 @@ import {
   MenuUnfoldOutlined,
   AppstoreOutlined,
   QrcodeOutlined,
-  RiseOutlined
+  RiseOutlined,
+  DroneOutlined,
+  BugOutlined
 } from '@ant-design/icons'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { getUser, clearAuth } from '../utils/auth'
@@ -94,6 +96,21 @@ const menuItems = [
       {
         key: '/workorder/list',
         label: '工单列表'
+      }
+    ]
+  },
+  {
+    key: '/drone',
+    icon: <DroneOutlined />,
+    label: '无人机巡检',
+    children: [
+      {
+        key: '/drone/tasks',
+        label: '巡检任务'
+      },
+      {
+        key: '/drone/defects',
+        label: '缺陷管理'
       }
     ]
   },

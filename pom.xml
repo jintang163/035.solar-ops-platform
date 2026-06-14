@@ -18,6 +18,7 @@
         <module>solar-ops-analysis</module>
         <module>solar-ops-workorder</module>
         <module>solar-ops-prediction</module>
+        <module>solar-ops-drone</module>
         <module>solar-ops-gateway</module>
     </modules>
 

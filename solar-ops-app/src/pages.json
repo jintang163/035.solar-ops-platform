@@ -48,6 +48,20 @@
       }
     },
     {
+      "path": "pages/drone/drone",
+      "style": {
+        "navigationBarTitleText": "无人机巡检",
+        "enablePullDownRefresh": true,
+        "backgroundTextStyle": "dark"
+      }
+    },
+    {
+      "path": "pages/drone/detail",
+      "style": {
+        "navigationBarTitleText": "详情"
+      }
+    },
+    {
       "path": "pages/mine/mine",
       "style": {
         "navigationBarTitleText": "我的"

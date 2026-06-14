@@ -163,3 +163,117 @@ CREATE TABLE prediction_alert (
     KEY idx_alert_type (alert_type),
     KEY idx_alert_level (alert_level)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='预测告警表';
+
+-- =====================================================
+-- 17. 无人机巡检任务表
+-- =====================================================
+DROP TABLE IF EXISTS drone_inspection_task;
+CREATE TABLE drone_inspection_task (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    task_code VARCHAR(50) NOT NULL COMMENT '任务编号',
+    task_name VARCHAR(100) DEFAULT NULL COMMENT '任务名称',
+    station_id BIGINT NOT NULL COMMENT '电站ID',
+    area VARCHAR(100) DEFAULT NULL COMMENT '巡检区域',
+    flight_mode VARCHAR(20) DEFAULT 'manual' COMMENT '飞行模式 manual-手动 auto-自动 waypoint-航点',
+    drone_code VARCHAR(50) DEFAULT NULL COMMENT '无人机编号',
+    pilot VARCHAR(50) DEFAULT NULL COMMENT '飞手',
+    start_time DATETIME DEFAULT NULL COMMENT '开始时间',
+    end_time DATETIME DEFAULT NULL COMMENT '结束时间',
+    status TINYINT DEFAULT 0 COMMENT '状态 0-待执行 1-执行中 2-已完成 3-已取消 4-异常',
+    image_count INT DEFAULT 0 COMMENT '拍摄图片数量',
+    defect_count INT DEFAULT 0 COMMENT '检测缺陷数量',
+    workorder_count INT DEFAULT 0 COMMENT '生成工单数量',
+    description VARCHAR(500) DEFAULT NULL COMMENT '任务描述',
+    create_by BIGINT DEFAULT NULL COMMENT '创建人',
+    create_time DATETIME DEFAULT NULL COMMENT '创建时间',
+    update_time DATETIME DEFAULT NULL COMMENT '更新时间',
+    deleted TINYINT DEFAULT 0 COMMENT '逻辑删除 0未删除 1已删除',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_task_code (task_code),
+    KEY idx_station_id (station_id),
+    KEY idx_status (status),
+    KEY idx_create_time (create_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='无人机巡检任务表';
+
+-- =====================================================
+-- 18. 巡检图像表
+-- =====================================================
+DROP TABLE IF EXISTS drone_inspection_image;
+CREATE TABLE drone_inspection_image (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    task_id BIGINT NOT NULL COMMENT '巡检任务ID',
+    image_name VARCHAR(255) DEFAULT NULL COMMENT '图片名称',
+    image_path VARCHAR(500) NOT NULL COMMENT '图片存储路径',
+    thumbnail_path VARCHAR(500) DEFAULT NULL COMMENT '缩略图路径',
+    annotated_path VARCHAR(500) DEFAULT NULL COMMENT '标注后图片路径',
+    image_type VARCHAR(20) DEFAULT 'visible' COMMENT '图像类型 visible-可见光 infrared-红外 thermal-热成像',
+    longitude DECIMAL(10,6) DEFAULT NULL COMMENT '拍摄经度',
+    latitude DECIMAL(10,6) DEFAULT NULL COMMENT '拍摄纬度',
+    altitude DECIMAL(8,2) DEFAULT NULL COMMENT '飞行高度(米)',
+    shoot_time DATETIME DEFAULT NULL COMMENT '拍摄时间',
+    camera_model VARCHAR(50) DEFAULT NULL COMMENT '相机型号',
+    image_width INT DEFAULT NULL COMMENT '图像宽度(px)',
+    image_height INT DEFAULT NULL COMMENT '图像高度(px)',
+    file_size BIGINT DEFAULT NULL COMMENT '文件大小(字节)',
+    detect_status TINYINT DEFAULT 0 COMMENT '检测状态 0-待检测 1-检测中 2-检测完成 3-检测失败',
+    detect_result TEXT DEFAULT NULL COMMENT 'AI检测结果JSON',
+    defect_count INT DEFAULT 0 COMMENT '检测缺陷数量',
+    detect_time DATETIME DEFAULT NULL COMMENT '检测完成时间',
+    remark VARCHAR(500) DEFAULT NULL COMMENT '备注',
+    create_time DATETIME DEFAULT NULL COMMENT '创建时间',
+    update_time DATETIME DEFAULT NULL COMMENT '更新时间',
+    deleted TINYINT DEFAULT 0 COMMENT '逻辑删除 0未删除 1已删除',
+    PRIMARY KEY (id),
+    KEY idx_task_id (task_id),
+    KEY idx_detect_status (detect_status),
+    KEY idx_shoot_time (shoot_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='巡检图像表';
+
+-- =====================================================
+-- 19. 缺陷识别表
+-- =====================================================
+DROP TABLE IF EXISTS drone_defect;
+CREATE TABLE drone_defect (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    task_id BIGINT NOT NULL COMMENT '巡检任务ID',
+    image_id BIGINT NOT NULL COMMENT '图像ID',
+    defect_code VARCHAR(50) DEFAULT NULL COMMENT '缺陷编号',
+    defect_type VARCHAR(30) NOT NULL COMMENT '缺陷类型 hot_spot-热斑 microcrack-隐裂 shadow-遮挡 delamination-脱层 broken-破损 dirt-脏污',
+    defect_level TINYINT DEFAULT 2 COMMENT '缺陷等级 1-轻微 2-一般 3-严重 4-紧急',
+    confidence DECIMAL(5,4) DEFAULT NULL COMMENT '置信度 0-1',
+    x_min INT DEFAULT NULL COMMENT '边界框左上角X坐标',
+    y_min INT DEFAULT NULL COMMENT '边界框左上角Y坐标',
+    x_max INT DEFAULT NULL COMMENT '边界框右下角X坐标',
+    y_max INT DEFAULT NULL COMMENT '边界框右下角Y坐标',
+    center_x INT DEFAULT NULL COMMENT '中心点X坐标',
+    center_y INT DEFAULT NULL COMMENT '中心点Y坐标',
+    bbox_width INT DEFAULT NULL COMMENT '边界框宽度',
+    bbox_height INT DEFAULT NULL COMMENT '边界框高度',
+    area_ratio DECIMAL(8,4) DEFAULT NULL COMMENT '缺陷占比(%)',
+    temperature DECIMAL(8,2) DEFAULT NULL COMMENT '温度(℃) 红外图像专用',
+    max_temperature DECIMAL(8,2) DEFAULT NULL COMMENT '最高温度(℃)',
+    min_temperature DECIMAL(8,2) DEFAULT NULL COMMENT '最低温度(℃)',
+    delta_temperature DECIMAL(8,2) DEFAULT NULL COMMENT '温度差(℃)',
+    component_row INT DEFAULT NULL COMMENT '组件行号',
+    component_col INT DEFAULT NULL COMMENT '组件列号',
+    component_code VARCHAR(50) DEFAULT NULL COMMENT '组件编号',
+    gps_longitude DECIMAL(10,6) DEFAULT NULL COMMENT '缺陷GPS经度',
+    gps_latitude DECIMAL(10,6) DEFAULT NULL COMMENT '缺陷GPS纬度',
+    workorder_id BIGINT DEFAULT NULL COMMENT '关联工单ID',
+    status TINYINT DEFAULT 0 COMMENT '状态 0-待处理 1-处理中 2-已修复 3-已忽略',
+    description VARCHAR(500) DEFAULT NULL COMMENT '缺陷描述',
+    suggestion VARCHAR(500) DEFAULT NULL COMMENT '处理建议',
+    verified TINYINT DEFAULT 0 COMMENT '是否人工确认 0-否 1-是',
+    verified_by BIGINT DEFAULT NULL COMMENT '确认人',
+    verified_time DATETIME DEFAULT NULL COMMENT '确认时间',
+    create_time DATETIME DEFAULT NULL COMMENT '创建时间',
+    update_time DATETIME DEFAULT NULL COMMENT '更新时间',
+    deleted TINYINT DEFAULT 0 COMMENT '逻辑删除 0未删除 1已删除',
+    PRIMARY KEY (id),
+    KEY idx_task_id (task_id),
+    KEY idx_image_id (image_id),
+    KEY idx_defect_type (defect_type),
+    KEY idx_defect_level (defect_level),
+    KEY idx_workorder_id (workorder_id),
+    KEY idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='缺陷识别表';

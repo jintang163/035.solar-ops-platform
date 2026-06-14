@@ -12,6 +12,8 @@ import AssetList from '../pages/asset/AssetList'
 import AssetDetail from '../pages/asset/AssetDetail'
 import QrCodeManager from '../pages/asset/QrCodeManager'
 import PowerPrediction from '../pages/prediction/PowerPrediction'
+import DroneInspectionList from '../pages/drone/DroneInspectionList'
+import DroneDefectList from '../pages/drone/DroneDefectList'
 
 const routes = [
   {
@@ -32,6 +34,8 @@ const routes = [
       { path: 'asset/detail/:id', element: <AssetDetail /> },
       { path: 'asset/qrcode', element: <QrCodeManager /> },
       { path: 'workorder/list', element: <WorkOrderList /> },
+      { path: 'drone/tasks', element: <DroneInspectionList /> },
+      { path: 'drone/defects', element: <DroneDefectList /> },
       { path: 'settings/user', element: <UserManagement /> }
     ]
   },
