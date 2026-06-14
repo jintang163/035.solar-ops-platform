@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package prediction;
+
+option java_package = "com.solar.ops.prediction.grpc";
+option java_outer_classname = "PredictionServiceProto";
+option java_multiple_files = true;
+
+service PowerPredictionService {
+  rpc Predict (PredictionRequest) returns (PredictionResponse);
+  rpc Train (TrainRequest) returns (TrainResponse);
+  rpc GetModelStatus (ModelStatusRequest) returns (ModelStatusResponse);
+}
+
+message FeaturePoint {
+  int64 timestamp = 1;
+  double temperature = 2;
+  double humidity = 3;
+  double irradiance = 4;
+  double cloud_cover = 5;
+  double hour = 6;
+  double day_of_year = 7;
+  double historical_power = 8;
+}
+
+message PredictionRequest {
+  int64 station_id = 1;
+  int64 inverter_id = 2;
+  int32 horizon = 3;
+  repeated FeaturePoint features = 4;
+  string model_version = 5;
+}
+
+message PredictionResult {
+  int64 target_time = 1;
+  double predicted_power = 2;
+  double confidence = 3;
+}
+
+message PredictionResponse {
+  bool success = 1;
+  string message = 2;
+  string model_version = 3;
+  repeated PredictionResult predictions = 4;
+}
+
+message TrainDataPoint {
+  double temperature = 1;
+  double humidity = 2;
+  double irradiance = 3;
+  double cloud_cover = 4;
+  double hour = 5;
+  double day_of_year = 6;
+  double historical_power = 7;
+  double target_power = 8;
+}
+
+message TrainRequest {
+  int64 station_id = 1;
+  int64 inverter_id = 2;
+  repeated TrainDataPoint training_data = 3;
+  string model_version = 4;
+}
+
+message TrainResponse {
+  bool success = 1;
+  string message = 2;
+  string model_version = 3;
+  double train_score = 4;
+  double validation_score = 5;
+}
+
+message ModelStatusRequest {
+  int64 station_id = 1;
+  int64 inverter_id = 2;
+}
+
+message ModelStatusResponse {
+  bool exists = 1;
+  string model_version = 2;
+  string last_train_time = 3;
+  int32 sample_count = 4;
+  double last_metric = 5;
+}

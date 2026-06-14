@@ -1,0 +1,119 @@
+server:
+  port: 8084
+  servlet:
+    context-path: /prediction
+
+spring:
+  application:
+    name: solar-ops-prediction
+
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/solar_ops?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    druid:
+      initial-size: 5
+      min-idle: 5
+      max-active: 20
+      max-wait: 60000
+      time-between-eviction-runs-millis: 60000
+      min-evictable-idle-time-millis: 300000
+      validation-query: SELECT 1 FROM DUAL
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+
+  redis:
+    host: localhost
+    port: 6379
+    password:
+    database: 0
+    timeout: 3000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-wait: -1ms
+        max-idle: 8
+        min-idle: 0
+
+  quartz:
+    scheduler-name: predictionScheduler
+    job-store-type: memory
+    properties:
+      org:
+        quartz:
+          scheduler:
+            instanceName: predictionScheduler
+            instanceId: AUTO
+          jobStore:
+            class: org.quartz.simpl.RAMJobStore
+          threadPool:
+            class: org.quartz.simpl.SimpleThreadPool
+            threadCount: 10
+            threadPriority: 5
+
+  rocketmq:
+    name-server: localhost:9876
+    producer:
+      group: prediction-producer-group
+    consumer:
+      group: prediction-consumer-group
+
+influxdb:
+  url: http://localhost:8086
+  username: admin
+  password: admin
+  database: solar_ops
+  retention-policy: autogen
+  connect-timeout: 10
+  read-timeout: 30
+  write-timeout: 10
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.solar.ops.prediction.entity,com.solar.ops.admin.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: false
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+knife4j:
+  enable: true
+  openapi:
+    title: 功率预测模块API
+    description: 光伏电站气象数据融合与功率预测模块接口文档
+    email: support@solar.com
+    concat: solar-ops
+    version: 1.0.0
+    terms-of-service-url: http://www.solar.com
+
+weather:
+  provider: qweather
+  amap:
+    api-key: your-amap-api-key-here
+    weather-url: https://restapi.amap.com/v3/weather/weatherInfo
+  qweather:
+    api-key: your-qweather-api-key-here
+    weather-now-url: https://devapi.qweather.com/v7/weather/now
+    weather-forecast-url: https://devapi.qweather.com/v7/weather/3d
+    weather-indices-url: https://devapi.qweather.com/v7/indices/1d
+    weather-hourly-url: https://devapi.qweather.com/v7/weather/24h
+    solar-radiation-url: https://devapi.qweather.com/v7/solar-radiation/hourly
+
+grpc:
+  prediction:
+    host: 127.0.0.1
+    port: 50051
+
+prediction:
+  hours-ahead: 6
+  deviation-alert-threshold: 0.2
+  model-training-days: 30
