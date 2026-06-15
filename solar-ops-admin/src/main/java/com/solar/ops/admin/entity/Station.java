@@ -55,4 +55,7 @@ public class Station extends BaseEntity {
 
     @ApiModelProperty(value = "峰值日照小时数")
     private BigDecimal peakSunHours;
+
+    @ApiModelProperty(value = "组织ID")
+    private Long orgId;
 }

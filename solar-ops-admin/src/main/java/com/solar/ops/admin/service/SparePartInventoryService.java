@@ -1,6 +1,7 @@
 package com.solar.ops.admin.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.solar.ops.admin.dto.SparePartInboundDTO;
@@ -15,6 +16,7 @@ import com.solar.ops.admin.excel.SparePartInventoryExcelVO;
 import com.solar.ops.admin.mapper.SparePartInOutRecordMapper;
 import com.solar.ops.admin.mapper.SparePartInventoryMapper;
 import com.solar.ops.admin.util.QrCodeUtil;
+import com.solar.ops.admin.util.DataScopeHelper;
 import com.solar.ops.admin.vo.*;
 import com.solar.ops.common.exception.BusinessException;
 import com.solar.ops.common.page.PageQuery;
@@ -42,8 +44,15 @@ public class SparePartInventoryService extends ServiceImpl<SparePartInventoryMap
     @Resource
     private SparePartInOutRecordMapper inOutRecordMapper;
 
+    @Resource
+    private DataScopeHelper dataScopeHelper;
+
     public PageResult<SparePartInventoryVO> page(PageQuery pageQuery, SparePartInventoryQueryDTO queryDTO) {
         Page<SparePartInventoryVO> page = new Page<>(pageQuery.getPageNum(), pageQuery.getPageSize());
+        java.util.List<Long> stationIds = dataScopeHelper.getAccessibleStationIds();
+        if (stationIds != null) {
+            queryDTO.setStationIds(stationIds);
+        }
         baseMapper.selectInventoryPage(page, queryDTO);
         return PageResult.build(page.getTotal(), page.getRecords(), pageQuery.getPageNum(), pageQuery.getPageSize());
     }
@@ -268,10 +277,18 @@ public class SparePartInventoryService extends ServiceImpl<SparePartInventoryMap
 
     public InventoryDashboardVO getDashboard() {
         InventoryDashboardVO dashboard = new InventoryDashboardVO();
+        java.util.List<Long> stationIds = dataScopeHelper.getAccessibleStationIds();
 
-        List<SparePartInventory> allInventory = list(new LambdaQueryWrapper<SparePartInventory>()
-                .eq(SparePartInventory::getStatus, 1)
-                .eq(SparePartInventory::getDeleted, 0));
+        QueryWrapper<SparePartInventory> inventoryWrapper = new QueryWrapper<>();
+        inventoryWrapper.eq("status", 1).eq("deleted", 0);
+        if (stationIds != null) {
+            if (stationIds.isEmpty()) {
+                inventoryWrapper.apply("1 = 0");
+            } else {
+                inventoryWrapper.in("station_id", stationIds);
+            }
+        }
+        List<SparePartInventory> allInventory = list(inventoryWrapper.lambda());
 
         dashboard.setTotalSkuCount(allInventory.size());
         dashboard.setTotalQuantity(allInventory.stream().mapToInt(SparePartInventory::getQuantity).sum());
@@ -295,18 +312,34 @@ public class SparePartInventoryService extends ServiceImpl<SparePartInventoryMap
         LocalDateTime dayStart = today.atStartOfDay();
         LocalDateTime dayEnd = today.atTime(23, 59, 59);
 
-        LambdaQueryWrapper<SparePartInOutRecord> inWrapper = new LambdaQueryWrapper<>();
-        inWrapper.eq(SparePartInOutRecord::getRecordType, SparePartRecordTypeEnum.IN.getCode());
-        inWrapper.between(SparePartInOutRecord::getOperateTime, dayStart, dayEnd);
-        inWrapper.eq(SparePartInOutRecord::getDeleted, 0);
-        List<SparePartInOutRecord> todayInRecords = inOutRecordMapper.selectList(inWrapper);
+        QueryWrapper<SparePartInOutRecord> inWrapper = new QueryWrapper<>();
+        inWrapper.eq("record_type", SparePartRecordTypeEnum.IN.getCode());
+        inWrapper.between("operate_time", dayStart, dayEnd);
+        inWrapper.eq("deleted", 0);
+        if (stationIds != null) {
+            if (stationIds.isEmpty()) {
+                inWrapper.apply("1 = 0");
+            } else {
+                inWrapper.inSql("part_id", "SELECT id FROM spare_part_inventory WHERE deleted = 0 AND station_id IN (" +
+                        stationIds.stream().map(String::valueOf).collect(Collectors.joining(",")) + ")");
+            }
+        }
+        List<SparePartInOutRecord> todayInRecords = inOutRecordMapper.selectList(inWrapper.lambda());
         dashboard.setTodayInboundCount(todayInRecords.stream().mapToInt(SparePartInOutRecord::getQuantity).sum());
 
-        LambdaQueryWrapper<SparePartInOutRecord> outWrapper = new LambdaQueryWrapper<>();
-        outWrapper.eq(SparePartInOutRecord::getRecordType, SparePartRecordTypeEnum.OUT.getCode());
-        outWrapper.between(SparePartInOutRecord::getOperateTime, dayStart, dayEnd);
-        outWrapper.eq(SparePartInOutRecord::getDeleted, 0);
-        List<SparePartInOutRecord> todayOutRecords = inOutRecordMapper.selectList(outWrapper);
+        QueryWrapper<SparePartInOutRecord> outWrapper = new QueryWrapper<>();
+        outWrapper.eq("record_type", SparePartRecordTypeEnum.OUT.getCode());
+        outWrapper.between("operate_time", dayStart, dayEnd);
+        outWrapper.eq("deleted", 0);
+        if (stationIds != null) {
+            if (stationIds.isEmpty()) {
+                outWrapper.apply("1 = 0");
+            } else {
+                outWrapper.inSql("part_id", "SELECT id FROM spare_part_inventory WHERE deleted = 0 AND station_id IN (" +
+                        stationIds.stream().map(String::valueOf).collect(Collectors.joining(",")) + ")");
+            }
+        }
+        List<SparePartInOutRecord> todayOutRecords = inOutRecordMapper.selectList(outWrapper.lambda());
         dashboard.setTodayOutboundCount(todayOutRecords.stream().mapToInt(SparePartInOutRecord::getQuantity).sum());
 
         List<InventoryByTypeVO> typeStats = new ArrayList<>();
@@ -331,6 +364,9 @@ public class SparePartInventoryService extends ServiceImpl<SparePartInventoryMap
 
         Page<SparePartInventoryVO> warnPage = new Page<>(1, 10);
         SparePartInventoryQueryDTO warnQuery = new SparePartInventoryQueryDTO();
+        if (stationIds != null) {
+            warnQuery.setStationIds(stationIds);
+        }
         baseMapper.selectInventoryPage(warnPage, warnQuery);
 
         List<SparePartInventoryVO> warnParts = warnPage.getRecords().stream()

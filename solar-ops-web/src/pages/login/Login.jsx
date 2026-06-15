@@ -3,7 +3,8 @@ import { Form, Input, Button, Card, message } from 'antd'
 import { UserOutlined, LockOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { login as loginApi } from '../../api/login'
-import { setToken, setUser } from '../../utils/auth'
+import { getWorkspaceInfo } from '../../api/workspace'
+import { setToken, setUser, setWorkspace, setCurrentStationId } from '../../utils/auth'
 
 const Login = () => {
   const [loading, setLoading] = useState(false)
@@ -14,9 +15,29 @@ const Login = () => {
     try {
       const res = await loginApi(values)
       if (res.code === 200 || res.code === 0) {
-        const { token, userInfo } = res.data
-        setToken(token)
+        const data = res.data
+        const userInfo = {
+          userId: data.userId,
+          username: data.username,
+          nickname: data.nickname,
+          role: data.role,
+          isAdmin: data.isAdmin,
+          orgId: data.orgId,
+          dataScope: data.dataScope
+        }
+        setToken(data.token)
         setUser(userInfo)
+        setCurrentStationId(null)
+
+        try {
+          const workspaceRes = await getWorkspaceInfo()
+          if (workspaceRes.data) {
+            setWorkspace(workspaceRes.data)
+          }
+        } catch (e) {
+          console.warn('获取工作空间信息失败', e)
+        }
+
         message.success('登录成功')
         navigate('/dashboard')
       }

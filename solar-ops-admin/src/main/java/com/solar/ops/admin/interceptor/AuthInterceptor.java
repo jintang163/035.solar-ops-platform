@@ -1,6 +1,7 @@
 package com.solar.ops.admin.interceptor;
 
 import com.solar.ops.admin.holder.LoginUserHolder;
+import com.solar.ops.admin.mapper.SysUserStationMapper;
 import com.solar.ops.admin.util.JwtTokenUtil;
 import com.solar.ops.common.exception.BusinessException;
 import com.solar.ops.common.result.ResultCode;
@@ -11,6 +12,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.util.List;
 
 @Component
 public class AuthInterceptor implements HandlerInterceptor {
@@ -27,6 +29,9 @@ public class AuthInterceptor implements HandlerInterceptor {
     @Resource
     private LoginUserHolder loginUserHolder;
 
+    @Resource
+    private SysUserStationMapper sysUserStationMapper;
+
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         String authHeader = request.getHeader(header);
@@ -42,10 +47,29 @@ public class AuthInterceptor implements HandlerInterceptor {
         Long userId = jwtTokenUtil.getUserIdFromToken(token);
         String username = jwtTokenUtil.getUsernameFromToken(token);
         String role = jwtTokenUtil.getRoleFromToken(token);
+        Integer isAdmin = jwtTokenUtil.getIsAdminFromToken(token);
+        Long orgId = jwtTokenUtil.getOrgIdFromToken(token);
+        Integer dataScope = jwtTokenUtil.getDataScopeFromToken(token);
 
         loginUserHolder.setUserId(userId);
         loginUserHolder.setUsername(username);
         loginUserHolder.setRole(role);
+        loginUserHolder.setIsAdmin(isAdmin);
+        loginUserHolder.setOrgId(orgId);
+        loginUserHolder.setDataScope(dataScope);
+
+        String stationIdHeader = request.getHeader("X-Current-Station-Id");
+        if (stationIdHeader != null && !stationIdHeader.isEmpty() && !"null".equalsIgnoreCase(stationIdHeader)) {
+            try {
+                loginUserHolder.setCurrentStationId(Long.parseLong(stationIdHeader));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+
+        if (isAdmin == null || isAdmin != 1) {
+            List<Long> stationIds = sysUserStationMapper.getStationIdsByUserId(userId);
+            loginUserHolder.setStationIds(stationIds);
+        }
 
         return true;
     }

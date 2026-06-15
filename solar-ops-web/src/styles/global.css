@@ -157,12 +157,22 @@ a:hover {
   top: 0;
   z-index: 99;
   height: 64px;
+  gap: 24px;
 }
 
 .header-left {
   display: flex;
   align-items: center;
   gap: 16px;
+  flex: 0 0 auto;
+}
+
+.header-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
 }
 
 .collapse-trigger {

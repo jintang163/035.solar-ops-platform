@@ -20,10 +20,23 @@ public class JwtTokenUtil {
     private Long expiration;
 
     public String generateToken(Long userId, String username, String role) {
+        return generateToken(userId, username, role, null, null, null);
+    }
+
+    public String generateToken(Long userId, String username, String role, Integer isAdmin, Long orgId, Integer dataScope) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId);
         claims.put("username", username);
         claims.put("role", role);
+        if (isAdmin != null) {
+            claims.put("isAdmin", isAdmin);
+        }
+        if (orgId != null) {
+            claims.put("orgId", orgId);
+        }
+        if (dataScope != null) {
+            claims.put("dataScope", dataScope);
+        }
         return Jwts.builder()
                 .setClaims(claims)
                 .setIssuedAt(new Date())
@@ -74,6 +87,30 @@ public class JwtTokenUtil {
             return claims.get("role").toString();
         }
         return null;
+    }
+
+    public Integer getIsAdminFromToken(String token) {
+        Claims claims = getClaimsFromToken(token);
+        if (claims != null && claims.get("isAdmin") != null) {
+            return Integer.valueOf(claims.get("isAdmin").toString());
+        }
+        return 0;
+    }
+
+    public Long getOrgIdFromToken(String token) {
+        Claims claims = getClaimsFromToken(token);
+        if (claims != null && claims.get("orgId") != null) {
+            return Long.valueOf(claims.get("orgId").toString());
+        }
+        return null;
+    }
+
+    public Integer getDataScopeFromToken(String token) {
+        Claims claims = getClaimsFromToken(token);
+        if (claims != null && claims.get("dataScope") != null) {
+            return Integer.valueOf(claims.get("dataScope").toString());
+        }
+        return 1;
     }
 
     public Boolean validateToken(String token) {

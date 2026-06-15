@@ -25,6 +25,8 @@ import RevenueStatistics from '../pages/revenue/RevenueStatistics'
 import SparePartInventoryList from '../pages/spare-parts/SparePartInventoryList'
 import StocktakeList from '../pages/stocktakes/StocktakeList'
 import PurchaseSuggestionList from '../pages/purchase-suggestions/PurchaseSuggestionList'
+import GroupReport from '../pages/report/GroupReport'
+import OrgManagement from '../pages/settings/OrgManagement'
 
 const routes = [
   {
@@ -58,6 +60,8 @@ const routes = [
       { path: 'spare-parts/inventory', element: <SparePartInventoryList /> },
       { path: 'stocktakes', element: <StocktakeList /> },
       { path: 'purchase-suggestions', element: <PurchaseSuggestionList /> },
+      { path: 'report/group', element: <GroupReport /> },
+      { path: 'settings/org', element: <OrgManagement /> },
       { path: 'settings/user', element: <UserManagement /> }
     ]
   },

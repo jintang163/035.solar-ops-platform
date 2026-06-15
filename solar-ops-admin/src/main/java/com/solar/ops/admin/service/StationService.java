@@ -1,10 +1,12 @@
 package com.solar.ops.admin.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.solar.ops.admin.entity.Station;
 import com.solar.ops.admin.mapper.StationMapper;
+import com.solar.ops.admin.util.DataScopeHelper;
 import com.solar.ops.common.exception.BusinessException;
 import com.solar.ops.common.page.PageQuery;
 import com.solar.ops.common.page.PageResult;
@@ -12,23 +14,29 @@ import com.solar.ops.common.result.ResultCode;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import javax.annotation.Resource;
 import java.util.List;
 
 @Service
 public class StationService extends ServiceImpl<StationMapper, Station> {
 
-    public PageResult<Station> page(PageQuery pageQuery, String keyword, Integer status) {
+    @Resource
+    private DataScopeHelper dataScopeHelper;
+
+    public PageResult<Station> page(PageQuery pageQuery, String keyword, Integer status, QueryWrapper<Station> wrapper) {
         Page<Station> page = new Page<>(pageQuery.getPageNum(), pageQuery.getPageSize());
 
-        LambdaQueryWrapper<Station> wrapper = new LambdaQueryWrapper<>();
+        if (wrapper == null) {
+            wrapper = new QueryWrapper<>();
+        }
         if (StringUtils.hasText(keyword)) {
-            wrapper.like(Station::getStationName, keyword)
-                    .or().like(Station::getStationCode, keyword);
+            wrapper.like("station_name", keyword)
+                    .or().like("station_code", keyword);
         }
         if (status != null) {
-            wrapper.eq(Station::getStatus, status);
+            wrapper.eq("status", status);
         }
-        wrapper.orderByDesc(Station::getCreateTime);
+        wrapper.orderByDesc("create_time");
 
         page(page, wrapper);
         return PageResult.build(page.getTotal(), page.getRecords(), pageQuery.getPageNum(), pageQuery.getPageSize());

@@ -35,4 +35,13 @@ public class SysUser extends BaseEntity {
 
     @ApiModelProperty(value = "角色")
     private String role;
+
+    @ApiModelProperty(value = "是否管理员 0否 1是")
+    private Integer isAdmin;
+
+    @ApiModelProperty(value = "组织ID")
+    private Long orgId;
+
+    @ApiModelProperty(value = "数据权限范围 1全部 2本组织及以下 3仅本人")
+    private Integer dataScope;
 }

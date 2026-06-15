@@ -68,6 +68,12 @@ public class SparePartInventory extends BaseEntity {
     @ApiModelProperty(value = "预警状态 0-正常 1-低库存预警 2-库存不足")
     private Integer warnStatus;
 
+    @ApiModelProperty(value = "所属电站ID")
+    private Long stationId;
+
+    @ApiModelProperty(value = "所属电站名称")
+    private String stationName;
+
     @ApiModelProperty(value = "二维码图片地址")
     private String qrCodeUrl;
 

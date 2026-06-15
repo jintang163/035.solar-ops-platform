@@ -44,7 +44,14 @@ public class SysUserService extends ServiceImpl<SysUserMapper, SysUser> {
             throw new BusinessException("用户名或密码错误");
         }
 
-        String token = jwtTokenUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
+        String token = jwtTokenUtil.generateToken(
+                user.getId(),
+                user.getUsername(),
+                user.getRole(),
+                user.getIsAdmin(),
+                user.getOrgId(),
+                user.getDataScope()
+        );
 
         LoginVO loginVO = new LoginVO();
         loginVO.setToken(tokenPrefix + " " + token);
@@ -52,6 +59,9 @@ public class SysUserService extends ServiceImpl<SysUserMapper, SysUser> {
         loginVO.setUsername(user.getUsername());
         loginVO.setNickname(user.getNickname());
         loginVO.setRole(user.getRole());
+        loginVO.setIsAdmin(user.getIsAdmin());
+        loginVO.setOrgId(user.getOrgId());
+        loginVO.setDataScope(user.getDataScope());
         return loginVO;
     }
 

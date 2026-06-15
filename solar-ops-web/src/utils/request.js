@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { message } from 'antd'
-import { getToken, clearAuth } from './auth'
+import { getToken, getCurrentStationId, clearAuth } from './auth'
 
 const request = axios.create({
   baseURL: '',
@@ -12,6 +12,10 @@ request.interceptors.request.use(
     const token = getToken()
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
+    }
+    const stationId = getCurrentStationId()
+    if (stationId !== null && stationId !== undefined) {
+      config.headers['X-Current-Station-Id'] = stationId
     }
     return config
   },

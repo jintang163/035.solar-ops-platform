@@ -1,7 +1,10 @@
 package com.solar.ops.admin.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.solar.ops.admin.entity.Station;
+import com.solar.ops.admin.holder.LoginUserHolder;
 import com.solar.ops.admin.service.StationService;
+import com.solar.ops.admin.util.DataScopeHelper;
 import com.solar.ops.common.page.PageQuery;
 import com.solar.ops.common.page.PageResult;
 import com.solar.ops.common.result.Result;
@@ -21,12 +24,20 @@ public class StationController {
     @Resource
     private StationService stationService;
 
+    @Resource
+    private LoginUserHolder loginUserHolder;
+
+    @Resource
+    private DataScopeHelper dataScopeHelper;
+
     @GetMapping
     @ApiOperation(value = "分页查询电站列表")
     public Result<PageResult<Station>> page(@ApiParam(value = "分页参数") PageQuery pageQuery,
                                             @ApiParam(value = "关键词") @RequestParam(required = false) String keyword,
                                             @ApiParam(value = "状态") @RequestParam(required = false) Integer status) {
-        PageResult<Station> pageResult = stationService.page(pageQuery, keyword, status);
+        QueryWrapper<Station> wrapper = new QueryWrapper<>();
+        dataScopeHelper.injectDataScope(wrapper, "id");
+        PageResult<Station> pageResult = stationService.page(pageQuery, keyword, status, wrapper);
         return Result.success(pageResult);
     }
 

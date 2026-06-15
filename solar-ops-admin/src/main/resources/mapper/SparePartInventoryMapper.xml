@@ -25,6 +25,8 @@
         <result column="status_desc" property="statusDesc"/>
         <result column="warn_status" property="warnStatus"/>
         <result column="warn_status_desc" property="warnStatusDesc"/>
+        <result column="station_id" property="stationId"/>
+        <result column="station_name" property="stationName"/>
         <result column="qr_code_url" property="qrCodeUrl"/>
         <result column="remark" property="remark"/>
         <result column="create_time" property="createTime"/>
@@ -57,6 +59,8 @@
             i.warehouse,
             i.supplier,
             i.manufacturer,
+            i.station_id,
+            i.station_name,
             i.status,
             CASE i.status
                 WHEN 0 THEN '停用'
@@ -76,6 +80,12 @@
             i.update_time
         FROM spare_part_inventory i
         WHERE i.deleted = 0
+        <if test="query.stationIds != null and query.stationIds.size() > 0">
+            AND i.station_id IN
+            <foreach collection="query.stationIds" item="stationId" open="(" separator="," close=")">
+                #{stationId}
+            </foreach>
+        </if>
         <if test="query.keyword != null and query.keyword != ''">
             AND (
                 i.part_name LIKE CONCAT('%', #{query.keyword}, '%')

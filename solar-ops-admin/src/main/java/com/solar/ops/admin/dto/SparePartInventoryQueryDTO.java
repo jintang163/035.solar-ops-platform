@@ -5,6 +5,7 @@ import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Data
 @ApiModel(value = "备件库存查询DTO")
@@ -24,4 +25,7 @@ public class SparePartInventoryQueryDTO {
 
     @ApiModelProperty(value = "状态 0-停用 1-启用")
     private Integer status;
+
+    @ApiModelProperty(value = "电站ID列表（数据权限过滤）", hidden = true)
+    private List<Long> stationIds;
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Layout, Menu, Avatar, Dropdown, Badge, Breadcrumb } from 'antd'
 import {
   DashboardOutlined,
@@ -24,10 +24,15 @@ import {
   ToolOutlined,
   InboxOutlined,
   ShoppingCartOutlined,
-  StockOutlined
+  StockOutlined,
+  LineChartOutlined,
+  TeamOutlined,
+  ApartmentOutlined
 } from '@ant-design/icons'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { getUser, clearAuth } from '../utils/auth'
+import { getUser, clearAuth, getWorkspace, setWorkspace, setCurrentStationId } from '../utils/auth'
+import WorkspaceSwitcher from '../components/WorkspaceSwitcher'
+import { getWorkspaceInfo } from '../api/workspace'
 
 const { Header, Sider, Content } = Layout
 
@@ -193,12 +198,30 @@ const menuItems = [
     ]
   },
   {
+    key: '/report',
+    icon: <LineChartOutlined />,
+    label: '数据报表',
+    children: [
+      {
+        key: '/report/group',
+        icon: <BarChartOutlined />,
+        label: '集团版报表'
+      }
+    ]
+  },
+  {
     key: '/settings',
     icon: <SettingOutlined />,
     label: '系统设置',
     children: [
       {
+        key: '/settings/org',
+        icon: <ApartmentOutlined />,
+        label: '组织架构'
+      },
+      {
         key: '/settings/user',
+        icon: <TeamOutlined />,
         label: '用户管理'
       }
     ]
@@ -207,9 +230,33 @@ const menuItems = [
 
 const MainLayout = () => {
   const [collapsed, setCollapsed] = useState(false)
+  const [workspaceLoaded, setWorkspaceLoaded] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
   const user = getUser()
+
+  useEffect(() => {
+    initWorkspace()
+  }, [])
+
+  const initWorkspace = async () => {
+    const workspace = getWorkspace()
+    if (!workspace) {
+      try {
+        const res = await getWorkspaceInfo()
+        if (res.data) {
+          setWorkspace(res.data)
+        }
+      } catch (e) {
+        console.error('初始化工作空间失败', e)
+      }
+    }
+    setWorkspaceLoaded(true)
+  }
+
+  const handleWorkspaceSwitch = (station) => {
+    navigate(0)
+  }
 
   const handleLogout = () => {
     clearAuth()
@@ -318,6 +365,11 @@ const MainLayout = () => {
               {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             </span>
             <Breadcrumb items={getBreadcrumbItems()} className="header-breadcrumb" />
+          </div>
+          <div className="header-center">
+            {workspaceLoaded && (
+              <WorkspaceSwitcher onSwitch={handleWorkspaceSwitch} />
+            )}
           </div>
           <div className="header-right">
             <Badge count={5} size="small">
