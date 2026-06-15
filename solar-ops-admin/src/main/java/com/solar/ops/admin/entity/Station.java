@@ -43,4 +43,16 @@ public class Station extends BaseEntity {
 
     @ApiModelProperty(value = "状态 0停用 1启用")
     private Integer status;
+
+    @ApiModelProperty(value = "总投资额（元）")
+    private BigDecimal totalInvestment;
+
+    @ApiModelProperty(value = "年运维成本（元）")
+    private BigDecimal annualOperationCost;
+
+    @ApiModelProperty(value = "设计寿命（年）")
+    private Integer designLife;
+
+    @ApiModelProperty(value = "峰值日照小时数")
+    private BigDecimal peakSunHours;
 }

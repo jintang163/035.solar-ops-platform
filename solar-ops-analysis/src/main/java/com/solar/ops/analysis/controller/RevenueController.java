@@ -142,6 +142,14 @@ public class RevenueController {
         return Result.success();
     }
 
+    @PostMapping("/calculate/yearly")
+    @ApiOperation("计算单个电站的年收益")
+    public Result<RevenueStatistics> calculateYearlyRevenue(
+            @ApiParam(value = "电站ID", required = true) @RequestParam Long stationId,
+            @ApiParam(value = "年份", required = true) @RequestParam Integer year) {
+        return Result.success(revenueCalculateService.calculateYearlyRevenue(stationId, year));
+    }
+
     @GetMapping("/calculate/unit-cost")
     @ApiOperation("计算度电成本")
     public Result<BigDecimal> calculateUnitCost(

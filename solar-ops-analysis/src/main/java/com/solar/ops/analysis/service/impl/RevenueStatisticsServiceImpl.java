@@ -17,6 +17,8 @@ import com.solar.ops.analysis.vo.RevenueDashboardVO;
 import com.solar.ops.analysis.vo.RevenueStatisticsVO;
 import com.solar.ops.analysis.vo.RevenueTrendVO;
 import com.solar.ops.analysis.vo.StationRevenueRankVO;
+import com.solar.ops.admin.entity.Station;
+import com.solar.ops.admin.mapper.StationMapper;
 import com.solar.ops.common.page.PageResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +45,9 @@ public class RevenueStatisticsServiceImpl extends ServiceImpl<RevenueStatisticsM
 
     @Autowired
     private RevenueCalculateService revenueCalculateService;
+
+    @Autowired
+    private StationMapper stationMapper;
 
     @Override
     public PageResult<RevenueStatisticsVO> queryPage(RevenueQueryDTO query) {
@@ -109,21 +114,35 @@ public class RevenueStatisticsServiceImpl extends ServiceImpl<RevenueStatisticsM
             vo.setAvgUnitCost(BigDecimal.ZERO);
         }
 
+        BigDecimal totalInvestment = null;
+        BigDecimal annualOpCost = null;
+
         if (investment != null && investment.getTotalInvestment() != null
                 && investment.getTotalInvestment().compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal yearNetRevenue = vo.getYearRevenue().subtract(
-                    investment.getAnnualOperationCost() != null
-                            ? investment.getAnnualOperationCost() : BigDecimal.ZERO);
-            BigDecimal roi = yearNetRevenue.divide(investment.getTotalInvestment(), 4, RoundingMode.HALF_UP)
-                    .multiply(new BigDecimal("100"))
-                    .setScale(2, RoundingMode.HALF_UP);
-            vo.setRoi(roi);
+            totalInvestment = investment.getTotalInvestment();
+            annualOpCost = investment.getAnnualOperationCost();
+        } else if (stationId != null) {
+            Station station = stationMapper.selectById(stationId);
+            if (station != null && station.getTotalInvestment() != null
+                    && station.getTotalInvestment().compareTo(BigDecimal.ZERO) > 0) {
+                totalInvestment = station.getTotalInvestment();
+                annualOpCost = station.getAnnualOperationCost();
+            }
+        }
 
+        if (totalInvestment != null) {
+            BigDecimal yearNetRevenue = vo.getYearRevenue().subtract(
+                    annualOpCost != null ? annualOpCost : BigDecimal.ZERO);
             if (yearNetRevenue.compareTo(BigDecimal.ZERO) > 0) {
-                BigDecimal paybackPeriod = investment.getTotalInvestment()
+                BigDecimal roi = yearNetRevenue.divide(totalInvestment, 4, RoundingMode.HALF_UP)
+                        .multiply(new BigDecimal("100"))
+                        .setScale(2, RoundingMode.HALF_UP);
+                vo.setRoi(roi);
+                BigDecimal paybackPeriod = totalInvestment
                         .divide(yearNetRevenue, 2, RoundingMode.HALF_UP);
                 vo.setPaybackPeriod(paybackPeriod);
             } else {
+                vo.setRoi(BigDecimal.ZERO);
                 vo.setPaybackPeriod(BigDecimal.ZERO);
             }
         } else {
@@ -249,7 +268,8 @@ public class RevenueStatisticsServiceImpl extends ServiceImpl<RevenueStatisticsM
 
             StationRevenueRankVO vo = new StationRevenueRankVO();
             vo.setStationId(statId);
-            vo.setStationName("电站" + statId);
+            Station station = stationMapper.selectById(statId);
+            vo.setStationName(station != null ? station.getStationName() : "电站" + statId);
             vo.setTotalRevenue(totalRevenue);
             vo.setTotalEnergy(totalEnergy);
             vo.setAvgUnitPrice(avgUnitPrice);
@@ -336,13 +356,21 @@ public class RevenueStatisticsServiceImpl extends ServiceImpl<RevenueStatisticsM
 
         LambdaQueryWrapper<RevenueStatistics> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(RevenueStatistics::getStationId, stationId);
-        wrapper.between(RevenueStatistics::getStatisticsDate, monthStart, monthEnd);
+        wrapper.eq(RevenueStatistics::getStatisticsDate, monthStart);
         wrapper.eq(RevenueStatistics::getStatisticsType, RevenueStatisticsTypeEnum.MONTH.getCode());
-        List<RevenueStatistics> list = list(wrapper);
+        RevenueStatistics monthlyStat = getOne(wrapper);
+        if (monthlyStat != null && monthlyStat.getTotalRevenue() != null) {
+            return monthlyStat.getTotalRevenue();
+        }
 
+        LambdaQueryWrapper<RevenueStatistics> dailyWrapper = new LambdaQueryWrapper<>();
+        dailyWrapper.eq(RevenueStatistics::getStationId, stationId);
+        dailyWrapper.eq(RevenueStatistics::getStatisticsType, RevenueStatisticsTypeEnum.DAY.getCode());
+        dailyWrapper.between(RevenueStatistics::getStatisticsDate, monthStart, monthEnd);
+        List<RevenueStatistics> list = list(dailyWrapper);
         return list.stream()
                 .map(s -> s.getTotalRevenue() != null ? s.getTotalRevenue() : BigDecimal.ZERO)
-                .reduce(BigDecimal.ZERO, BigDecimal::add));
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private BigDecimal getMonthEnergy(Long stationId, YearMonth month) {
@@ -351,13 +379,21 @@ public class RevenueStatisticsServiceImpl extends ServiceImpl<RevenueStatisticsM
 
         LambdaQueryWrapper<RevenueStatistics> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(RevenueStatistics::getStationId, stationId);
-        wrapper.between(RevenueStatistics::getStatisticsDate, monthStart, monthEnd);
+        wrapper.eq(RevenueStatistics::getStatisticsDate, monthStart);
         wrapper.eq(RevenueStatistics::getStatisticsType, RevenueStatisticsTypeEnum.MONTH.getCode());
-        List<RevenueStatistics> list = list(wrapper);
+        RevenueStatistics monthlyStat = getOne(wrapper);
+        if (monthlyStat != null && monthlyStat.getGridEnergy() != null) {
+            return monthlyStat.getGridEnergy();
+        }
 
+        LambdaQueryWrapper<RevenueStatistics> dailyWrapper = new LambdaQueryWrapper<>();
+        dailyWrapper.eq(RevenueStatistics::getStationId, stationId);
+        dailyWrapper.eq(RevenueStatistics::getStatisticsType, RevenueStatisticsTypeEnum.DAY.getCode());
+        dailyWrapper.between(RevenueStatistics::getStatisticsDate, monthStart, monthEnd);
+        List<RevenueStatistics> list = list(dailyWrapper);
         return list.stream()
                 .map(s -> s.getGridEnergy() != null ? s.getGridEnergy() : BigDecimal.ZERO)
-                .reduce(BigDecimal.ZERO, BigDecimal::add));
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private BigDecimal getYearRevenue(Long stationId, Integer year) {
@@ -366,13 +402,32 @@ public class RevenueStatisticsServiceImpl extends ServiceImpl<RevenueStatisticsM
 
         LambdaQueryWrapper<RevenueStatistics> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(RevenueStatistics::getStationId, stationId);
-        wrapper.between(RevenueStatistics::getStatisticsDate, yearStart, yearEnd);
+        wrapper.eq(RevenueStatistics::getStatisticsDate, yearStart);
         wrapper.eq(RevenueStatistics::getStatisticsType, RevenueStatisticsTypeEnum.YEAR.getCode());
-        List<RevenueStatistics> list = list(wrapper);
+        RevenueStatistics yearlyStat = getOne(wrapper);
+        if (yearlyStat != null && yearlyStat.getTotalRevenue() != null) {
+            return yearlyStat.getTotalRevenue();
+        }
 
-        return list.stream()
+        LambdaQueryWrapper<RevenueStatistics> monthWrapper = new LambdaQueryWrapper<>();
+        monthWrapper.eq(RevenueStatistics::getStationId, stationId);
+        monthWrapper.eq(RevenueStatistics::getStatisticsType, RevenueStatisticsTypeEnum.MONTH.getCode());
+        monthWrapper.between(RevenueStatistics::getStatisticsDate, yearStart, yearEnd);
+        List<RevenueStatistics> list = list(monthWrapper);
+        if (!CollectionUtils.isEmpty(list)) {
+            return list.stream()
+                    .map(s -> s.getTotalRevenue() != null ? s.getTotalRevenue() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+        }
+
+        LambdaQueryWrapper<RevenueStatistics> dailyWrapper = new LambdaQueryWrapper<>();
+        dailyWrapper.eq(RevenueStatistics::getStationId, stationId);
+        dailyWrapper.eq(RevenueStatistics::getStatisticsType, RevenueStatisticsTypeEnum.DAY.getCode());
+        dailyWrapper.between(RevenueStatistics::getStatisticsDate, yearStart, yearEnd);
+        List<RevenueStatistics> dailyList = list(dailyWrapper);
+        return dailyList.stream()
                 .map(s -> s.getTotalRevenue() != null ? s.getTotalRevenue() : BigDecimal.ZERO)
-                .reduce(BigDecimal.ZERO, BigDecimal::add));
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private List<RevenueTrendVO> getCostTrend(Long stationId, Integer days) {

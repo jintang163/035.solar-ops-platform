@@ -28,6 +28,19 @@ public class RevenueCalculateJob implements Job {
 
             revenueCalculateService.calculateAllStationsDailyRevenue(calculateDate);
 
+            if (calculateDate.equals(calculateDate.withDayOfMonth(1).minusDays(1))
+                    || calculateDate.getDayOfMonth() == 1) {
+                LocalDate lastMonth = calculateDate.minusMonths(1);
+                log.info("月初汇总：汇总{}年{}月的月度收益", lastMonth.getYear(), lastMonth.getMonthValue());
+                revenueCalculateService.calculateAllStationsMonthlyRevenue(lastMonth.getYear(), lastMonth.getMonthValue());
+            }
+
+            if (calculateDate.getMonthValue() == 1 && calculateDate.getDayOfMonth() == 1) {
+                int lastYear = calculateDate.getYear() - 1;
+                log.info("年初汇总：汇总{}年的年度收益", lastYear);
+                revenueCalculateService.calculateAllStationsYearlyRevenue(lastYear);
+            }
+
             log.info("电费收益计算定时任务执行完成");
         } catch (Exception e) {
             log.error("电费收益计算定时任务执行失败", e);

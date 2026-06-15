@@ -42,10 +42,8 @@ const { TextArea } = Input
 const { Option } = Select
 
 const STATUS_MAP = {
-  0: { color: 'default', text: '草稿' },
-  1: { color: 'processing', text: '生效中' },
-  2: { color: 'success', text: '已执行' },
-  3: { color: 'error', text: '已作废' }
+  0: { color: 'error', text: '已停用' },
+  1: { color: 'processing', text: '生效中' }
 }
 
 const PAGE_SIZE = 10
@@ -117,9 +115,10 @@ const PriceSchemeList = () => {
     if (scheme) {
       modalForm.setFieldsValue({
         ...scheme,
-        effectiveDate: scheme.effectiveDate ? dayjs(scheme.effectiveDate) : null,
-        expiryDate: scheme.expiryDate ? dayjs(scheme.expiryDate) : null,
-        isDefault: scheme.isDefault === 1
+        subsidyStartDate: scheme.subsidyStartDate ? dayjs(scheme.subsidyStartDate) : null,
+        subsidyEndDate: scheme.subsidyEndDate ? dayjs(scheme.subsidyEndDate) : null,
+        isDefault: scheme.isDefault === 1,
+        isParity: scheme.isParity === 1
       })
     }
     setModalVisible(true)
@@ -130,9 +129,10 @@ const PriceSchemeList = () => {
       const values = await modalForm.validateFields()
       const submitData = {
         ...values,
-        effectiveDate: values.effectiveDate ? values.effectiveDate.format('YYYY-MM-DD') : undefined,
-        expiryDate: values.expiryDate ? values.expiryDate.format('YYYY-MM-DD') : undefined,
-        isDefault: values.isDefault ? 1 : 0
+        subsidyStartDate: values.subsidyStartDate ? values.subsidyStartDate.format('YYYY-MM-DD') : undefined,
+        subsidyEndDate: values.subsidyEndDate ? values.subsidyEndDate.format('YYYY-MM-DD') : undefined,
+        isDefault: values.isDefault ? 1 : 0,
+        isParity: values.isParity ? 1 : 0
       }
       setModalLoading(true)
 
@@ -226,8 +226,8 @@ const PriceSchemeList = () => {
     },
     {
       title: '市级补贴',
-      dataIndex: 'citySubsidy',
-      key: 'citySubsidy',
+      dataIndex: 'municipalSubsidy',
+      key: 'municipalSubsidy',
       width: 120,
       render: (val) => <span style={{ color: '#52c41a' }}>¥{Number(val || 0).toFixed(4)}</span>
     },
@@ -238,9 +238,20 @@ const PriceSchemeList = () => {
       width: 120,
       render: (val, record) => {
         const total = Number(record.gridPrice || 0) + Number(record.nationalSubsidy || 0) +
-          Number(record.provincialSubsidy || 0) + Number(record.citySubsidy || 0)
+          Number(record.provincialSubsidy || 0) + Number(record.municipalSubsidy || 0)
         return <span style={{ color: '#fa8c16', fontWeight: 600 }}>¥{total.toFixed(4)}</span>
       }
+    },
+    {
+      title: '平价上网',
+      dataIndex: 'isParity',
+      key: 'isParity',
+      width: 100,
+      render: (val) => (
+        val === 1
+          ? <Tag color="green">是</Tag>
+          : <Tag color="default">否</Tag>
+      )
     },
     {
       title: '是否默认',
@@ -264,10 +275,10 @@ const PriceSchemeList = () => {
       }
     },
     {
-      title: '生效日期',
-      dataIndex: 'effectiveDate',
-      key: 'effectiveDate',
-      width: 120
+      title: '补贴起始日期',
+      dataIndex: 'subsidyStartDate',
+      key: 'subsidyStartDate',
+      width: 130
     },
     {
       title: '操作',
@@ -317,10 +328,8 @@ const PriceSchemeList = () => {
           </Form.Item>
           <Form.Item name="status" label="状态">
             <Select placeholder="全部" allowClear style={{ width: 140 }}>
-              <Option value={0}>草稿</Option>
+              <Option value={0}>已停用</Option>
               <Option value={1}>生效中</Option>
-              <Option value={2}>已执行</Option>
-              <Option value={3}>已作废</Option>
             </Select>
           </Form.Item>
           <Form.Item name="keyword" label="关键词">
@@ -339,7 +348,7 @@ const PriceSchemeList = () => {
           dataSource={schemeList}
           rowKey="id"
           loading={loading}
-          scroll={{ x: 1400 }}
+          scroll={{ x: 1600 }}
           pagination={{
             current: pageNum,
             pageSize: PAGE_SIZE,
@@ -392,17 +401,17 @@ const PriceSchemeList = () => {
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
-                name="effectiveDate"
-                label="生效日期"
-                rules={[{ required: true, message: '请选择生效日期' }]}
+                name="subsidyStartDate"
+                label="补贴起始日期"
+                rules={[{ required: true, message: '请选择补贴起始日期' }]}
               >
                 <DatePicker style={{ width: '100%' }} placeholder="选择日期" />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item
-                name="expiryDate"
-                label="失效日期"
+                name="subsidyEndDate"
+                label="补贴截止日期"
               >
                 <DatePicker style={{ width: '100%' }} placeholder="选择日期（可选）" />
               </Form.Item>
@@ -456,7 +465,7 @@ const PriceSchemeList = () => {
             </Col>
             <Col span={12}>
               <Form.Item
-                name="citySubsidy"
+                name="municipalSubsidy"
                 label="市级补贴 (元/kWh)"
               >
                 <InputNumber
@@ -472,16 +481,39 @@ const PriceSchemeList = () => {
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
+                name="benchmarkPrice"
+                label="标杆电价 (元/kWh)"
+              >
+                <InputNumber
+                  placeholder="请输入"
+                  min={0}
+                  step={0.0001}
+                  precision={4}
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
                 name="status"
                 label="状态"
                 rules={[{ required: true, message: '请选择状态' }]}
               >
                 <Select placeholder="请选择状态">
-                  <Option value={0}>草稿</Option>
+                  <Option value={0}>已停用</Option>
                   <Option value={1}>生效中</Option>
-                  <Option value={2}>已执行</Option>
-                  <Option value={3}>已作废</Option>
                 </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="isParity"
+                label="平价上网"
+                valuePropName="checked"
+              >
+                <Switch />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -495,7 +527,7 @@ const PriceSchemeList = () => {
             </Col>
           </Row>
           <Form.Item
-            name="description"
+            name="remark"
             label="方案说明"
           >
             <TextArea rows={3} placeholder="请输入方案说明" />
@@ -520,14 +552,18 @@ const PriceSchemeList = () => {
                   {(STATUS_MAP[currentScheme.status] || {}).text || currentScheme.status}
                 </Tag>
               </Descriptions.Item>
-              <Descriptions.Item label="生效日期">{currentScheme.effectiveDate || '-'}</Descriptions.Item>
-              <Descriptions.Item label="失效日期">{currentScheme.expiryDate || '-'}</Descriptions.Item>
+              <Descriptions.Item label="补贴起始日期">{currentScheme.subsidyStartDate || '-'}</Descriptions.Item>
+              <Descriptions.Item label="补贴截止日期">{currentScheme.subsidyEndDate || '-'}</Descriptions.Item>
               <Descriptions.Item label="是否默认">
                 {currentScheme.isDefault === 1
                   ? <Tag color="gold"><CheckCircleOutlined /> 默认方案</Tag>
                   : <Tag color="default"><CloseCircleOutlined /> 否</Tag>}
               </Descriptions.Item>
-              <Descriptions.Item label="创建时间">{currentScheme.createTime || '-'}</Descriptions.Item>
+              <Descriptions.Item label="平价上网">
+                {currentScheme.isParity === 1
+                  ? <Tag color="green">是</Tag>
+                  : <Tag color="default">否</Tag>}
+              </Descriptions.Item>
             </Descriptions>
 
             <Card title="电价构成" size="small" style={{ marginBottom: 24 }} type="inner">
@@ -563,7 +599,7 @@ const PriceSchemeList = () => {
                   <div style={{ textAlign: 'center', padding: '12px 0', background: '#f6ffed', borderRadius: 4 }}>
                     <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>市级补贴</div>
                     <div style={{ fontSize: 20, fontWeight: 600, color: '#52c41a' }}>
-                      ¥{Number(currentScheme.citySubsidy || 0).toFixed(4)}
+                      ¥{Number(currentScheme.municipalSubsidy || 0).toFixed(4)}
                     </div>
                     <div style={{ fontSize: 11, color: '#999' }}>元/kWh</div>
                   </div>
@@ -577,7 +613,7 @@ const PriceSchemeList = () => {
                       Number(currentScheme.gridPrice || 0) +
                       Number(currentScheme.nationalSubsidy || 0) +
                       Number(currentScheme.provincialSubsidy || 0) +
-                      Number(currentScheme.citySubsidy || 0)
+                      Number(currentScheme.municipalSubsidy || 0)
                     ).toFixed(4)}
                   </div>
                   <div style={{ fontSize: 12, color: '#999' }}>元/kWh</div>
@@ -585,9 +621,9 @@ const PriceSchemeList = () => {
               </div>
             </Card>
 
-            {currentScheme.description && (
+            {currentScheme.remark && (
               <Card title="方案说明" size="small" type="inner">
-                <div style={{ color: '#666', lineHeight: 1.6 }}>{currentScheme.description}</div>
+                <div style={{ color: '#666', lineHeight: 1.6 }}>{currentScheme.remark}</div>
               </Card>
             )}
           </>

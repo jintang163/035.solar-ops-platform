@@ -42,7 +42,7 @@ const { Group: RadioGroup } = Radio
 
 const PAGE_SIZE = 10
 
-const STATUS_MAP = {
+const SETTLEMENT_STATUS_MAP = {
   0: { color: 'default', text: '未核算' },
   1: { color: 'processing', text: '核算中' },
   2: { color: 'success', text: '已核算' },
@@ -74,7 +74,7 @@ const RevenueStatistics = () => {
       const params = {
         pageNum: page,
         pageSize: PAGE_SIZE,
-        statType: statType,
+        statisticsType: statType,
         ...values
       }
       if (values.dateRange) {
@@ -163,10 +163,17 @@ const RevenueStatistics = () => {
   const columns = [
     {
       title: statType === 'day' ? '日期' : '月份',
-      dataIndex: 'statDate',
-      key: 'statDate',
+      dataIndex: 'statisticsDate',
+      key: 'statisticsDate',
       width: 140,
       fixed: 'left'
+    },
+    {
+      title: '统计类型',
+      dataIndex: 'statisticsTypeDesc',
+      key: 'statisticsTypeDesc',
+      width: 100,
+      render: (val) => <Tag color="blue">{val || '-'}</Tag>
     },
     {
       title: '电站',
@@ -175,9 +182,15 @@ const RevenueStatistics = () => {
       width: 140
     },
     {
+      title: '电价方案',
+      dataIndex: 'schemeName',
+      key: 'schemeName',
+      width: 140
+    },
+    {
       title: '上网电量',
-      dataIndex: 'gridPower',
-      key: 'gridPower',
+      dataIndex: 'gridEnergy',
+      key: 'gridEnergy',
       width: 140,
       align: 'right',
       render: (val) => (
@@ -189,8 +202,8 @@ const RevenueStatistics = () => {
     },
     {
       title: '上网电费',
-      dataIndex: 'gridFee',
-      key: 'gridFee',
+      dataIndex: 'gridRevenue',
+      key: 'gridRevenue',
       width: 140,
       align: 'right',
       render: (val) => (
@@ -201,9 +214,9 @@ const RevenueStatistics = () => {
       )
     },
     {
-      title: '国家补贴',
-      dataIndex: 'nationalSubsidyFee',
-      key: 'nationalSubsidyFee',
+      title: '国家补贴收益',
+      dataIndex: 'nationalSubsidyRevenue',
+      key: 'nationalSubsidyRevenue',
       width: 130,
       align: 'right',
       render: (val) => (
@@ -214,9 +227,9 @@ const RevenueStatistics = () => {
       )
     },
     {
-      title: '省级补贴',
-      dataIndex: 'provincialSubsidyFee',
-      key: 'provincialSubsidyFee',
+      title: '省级补贴收益',
+      dataIndex: 'provincialSubsidyRevenue',
+      key: 'provincialSubsidyRevenue',
       width: 130,
       align: 'right',
       render: (val) => (
@@ -227,9 +240,9 @@ const RevenueStatistics = () => {
       )
     },
     {
-      title: '市级补贴',
-      dataIndex: 'citySubsidyFee',
-      key: 'citySubsidyFee',
+      title: '市级补贴收益',
+      dataIndex: 'municipalSubsidyRevenue',
+      key: 'municipalSubsidyRevenue',
       width: 130,
       align: 'right',
       render: (val) => (
@@ -240,22 +253,17 @@ const RevenueStatistics = () => {
       )
     },
     {
-      title: '补贴收益',
-      dataIndex: 'subsidyFee',
-      key: 'subsidyFee',
+      title: '补贴总收益',
+      dataIndex: 'totalSubsidyRevenue',
+      key: 'totalSubsidyRevenue',
       width: 140,
       align: 'right',
-      render: (val, record) => {
-        const totalSubsidy = Number(record.nationalSubsidyFee || 0) +
-          Number(record.provincialSubsidyFee || 0) +
-          Number(record.citySubsidyFee || 0)
-        return (
-          <div>
-            <span style={{ color: '#52c41a', fontWeight: 600 }}>¥{formatNumber(totalSubsidy)}</span>
-            <div style={{ fontSize: 11, color: '#999' }}>元</div>
-          </div>
-        )
-      }
+      render: (val) => (
+        <div>
+          <span style={{ color: '#52c41a', fontWeight: 600 }}>¥{formatNumber(val)}</span>
+          <div style={{ fontSize: 11, color: '#999' }}>元</div>
+        </div>
+      )
     },
     {
       title: '总收益',
@@ -263,23 +271,17 @@ const RevenueStatistics = () => {
       key: 'totalRevenue',
       width: 140,
       align: 'right',
-      render: (val, record) => {
-        const total = Number(record.gridFee || 0) +
-          Number(record.nationalSubsidyFee || 0) +
-          Number(record.provincialSubsidyFee || 0) +
-          Number(record.citySubsidyFee || 0)
-        return (
-          <div>
-            <span style={{ color: '#fa8c16', fontWeight: 600, fontSize: 15 }}>¥{formatNumber(total)}</span>
-            <div style={{ fontSize: 11, color: '#999' }}>元</div>
-          </div>
-        )
-      }
+      render: (val) => (
+        <div>
+          <span style={{ color: '#fa8c16', fontWeight: 600, fontSize: 15 }}>¥{formatNumber(val)}</span>
+          <div style={{ fontSize: 11, color: '#999' }}>元</div>
+        </div>
+      )
     },
     {
       title: '度电成本',
-      dataIndex: 'unitCost',
-      key: 'unitCost',
+      dataIndex: 'unitEnergyCost',
+      key: 'unitEnergyCost',
       width: 120,
       align: 'right',
       render: (val) => (
@@ -290,12 +292,38 @@ const RevenueStatistics = () => {
       )
     },
     {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
+      title: '有效上网电价',
+      dataIndex: 'effectiveGridPrice',
+      key: 'effectiveGridPrice',
+      width: 130,
+      align: 'right',
+      render: (val) => (
+        <div>
+          <span style={{ color: '#1890ff', fontWeight: 500 }}>¥{Number(val || 0).toFixed(4)}</span>
+          <div style={{ fontSize: 11, color: '#999' }}>元/kWh</div>
+        </div>
+      )
+    },
+    {
+      title: '运维成本',
+      dataIndex: 'operationCost',
+      key: 'operationCost',
+      width: 120,
+      align: 'right',
+      render: (val) => (
+        <div>
+          <span style={{ color: '#fa8c16', fontWeight: 500 }}>¥{formatNumber(val)}</span>
+          <div style={{ fontSize: 11, color: '#999' }}>元</div>
+        </div>
+      )
+    },
+    {
+      title: '结算状态',
+      dataIndex: 'settlementStatus',
+      key: 'settlementStatus',
       width: 100,
-      render: (status) => {
-        const info = STATUS_MAP[status] || { color: 'default', text: status }
+      render: (status, record) => {
+        const info = SETTLEMENT_STATUS_MAP[status] || { color: 'default', text: record.settlementStatusDesc || status }
         return <Tag color={info.color}>{info.text}</Tag>
       }
     },
@@ -393,7 +421,7 @@ const RevenueStatistics = () => {
           <Col xs={24} sm={12} md={8}>
             <StatCard
               title="总电量"
-              value={formatNumber(summaryData?.totalPower)}
+              value={formatNumber(summaryData?.totalEnergy)}
               suffix="kWh"
               icon={<ThunderboltOutlined />}
               color="#1890ff"
@@ -415,7 +443,7 @@ const RevenueStatistics = () => {
           dataSource={revenueList}
           rowKey="id"
           loading={loading}
-          scroll={{ x: 1600 }}
+          scroll={{ x: 2000 }}
           locale={{ emptyText: <Empty description="暂无统计数据" /> }}
           pagination={{
             current: pageNum,
@@ -427,34 +455,34 @@ const RevenueStatistics = () => {
           }}
           summary={(pageData) => {
             if (pageData.length === 0) return null
-            let totalGridPower = 0
-            let totalGridFee = 0
+            let totalGridEnergy = 0
+            let totalGridRevenue = 0
             let totalNationalSubsidy = 0
             let totalProvincialSubsidy = 0
-            let totalCitySubsidy = 0
+            let totalMunicipalSubsidy = 0
 
             pageData.forEach(item => {
-              totalGridPower += Number(item.gridPower || 0)
-              totalGridFee += Number(item.gridFee || 0)
-              totalNationalSubsidy += Number(item.nationalSubsidyFee || 0)
-              totalProvincialSubsidy += Number(item.provincialSubsidyFee || 0)
-              totalCitySubsidy += Number(item.citySubsidyFee || 0)
+              totalGridEnergy += Number(item.gridEnergy || 0)
+              totalGridRevenue += Number(item.gridRevenue || 0)
+              totalNationalSubsidy += Number(item.nationalSubsidyRevenue || 0)
+              totalProvincialSubsidy += Number(item.provincialSubsidyRevenue || 0)
+              totalMunicipalSubsidy += Number(item.municipalSubsidyRevenue || 0)
             })
 
-            const totalSubsidy = totalNationalSubsidy + totalProvincialSubsidy + totalCitySubsidy
-            const totalRevenue = totalGridFee + totalSubsidy
+            const totalSubsidyRevenue = totalNationalSubsidy + totalProvincialSubsidy + totalMunicipalSubsidy
+            const totalRevenue = totalGridRevenue + totalSubsidyRevenue
 
             return (
               <Table.Summary fixed>
                 <Table.Summary.Row>
-                  <Table.Summary.Cell index={0} colSpan={2}>
+                  <Table.Summary.Cell index={0} colSpan={4}>
                     <strong>本页合计</strong>
                   </Table.Summary.Cell>
                   <Table.Summary.Cell index={1} align="right">
-                    <strong>{formatNumber(totalGridPower)} kWh</strong>
+                    <strong>{formatNumber(totalGridEnergy)} kWh</strong>
                   </Table.Summary.Cell>
                   <Table.Summary.Cell index={2} align="right">
-                    <strong style={{ color: '#1890ff' }}>¥{formatNumber(totalGridFee)}</strong>
+                    <strong style={{ color: '#1890ff' }}>¥{formatNumber(totalGridRevenue)}</strong>
                   </Table.Summary.Cell>
                   <Table.Summary.Cell index={3} align="right">
                     <strong style={{ color: '#52c41a' }}>¥{formatNumber(totalNationalSubsidy)}</strong>
@@ -463,15 +491,15 @@ const RevenueStatistics = () => {
                     <strong style={{ color: '#52c41a' }}>¥{formatNumber(totalProvincialSubsidy)}</strong>
                   </Table.Summary.Cell>
                   <Table.Summary.Cell index={5} align="right">
-                    <strong style={{ color: '#52c41a' }}>¥{formatNumber(totalCitySubsidy)}</strong>
+                    <strong style={{ color: '#52c41a' }}>¥{formatNumber(totalMunicipalSubsidy)}</strong>
                   </Table.Summary.Cell>
                   <Table.Summary.Cell index={6} align="right">
-                    <strong style={{ color: '#52c41a' }}>¥{formatNumber(totalSubsidy)}</strong>
+                    <strong style={{ color: '#52c41a' }}>¥{formatNumber(totalSubsidyRevenue)}</strong>
                   </Table.Summary.Cell>
                   <Table.Summary.Cell index={7} align="right">
                     <strong style={{ color: '#fa8c16', fontSize: 15 }}>¥{formatNumber(totalRevenue)}</strong>
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={8} colSpan={3} />
+                  <Table.Summary.Cell index={8} colSpan={5} />
                 </Table.Summary.Row>
               </Table.Summary>
             )

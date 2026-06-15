@@ -2,30 +2,30 @@ import request from '../utils/request'
 
 export function getPriceSchemeList(data) {
   return request({
-    url: '/api/revenue/price/page',
+    url: '/api/revenue/price-scheme/page',
     method: 'post',
     data
   })
 }
 
-export function getPriceSchemeAll(params) {
+export function getPriceSchemeAll(data) {
   return request({
-    url: '/api/revenue/price/list',
-    method: 'get',
-    params
+    url: '/api/revenue/price-scheme/list',
+    method: 'post',
+    data
   })
 }
 
 export function getPriceSchemeDetail(id) {
   return request({
-    url: `/api/revenue/price/${id}`,
+    url: `/api/revenue/price-scheme/${id}`,
     method: 'get'
   })
 }
 
 export function createPriceScheme(data) {
   return request({
-    url: '/api/revenue/price',
+    url: '/api/revenue/price-scheme/save',
     method: 'post',
     data
   })
@@ -33,38 +33,39 @@ export function createPriceScheme(data) {
 
 export function updatePriceScheme(data) {
   return request({
-    url: '/api/revenue/price',
-    method: 'put',
+    url: '/api/revenue/price-scheme/update',
+    method: 'post',
     data
   })
 }
 
 export function deletePriceScheme(id) {
   return request({
-    url: `/api/revenue/price/${id}`,
+    url: `/api/revenue/price-scheme/${id}`,
     method: 'delete'
   })
 }
 
 export function getDefaultPriceScheme(params) {
   return request({
-    url: '/api/revenue/price/default',
+    url: '/api/revenue/price-scheme/default',
     method: 'get',
     params
   })
 }
 
-export function comparePriceSchemes(data) {
+export function comparePriceSchemes(data, params) {
   return request({
-    url: '/api/revenue/price/compare',
+    url: '/api/revenue/price-scheme/compare',
     method: 'post',
-    data
+    data,
+    params
   })
 }
 
 export function calcDailyRevenue(params) {
   return request({
-    url: '/api/revenue/calc/daily',
+    url: '/api/revenue/calculate/daily',
     method: 'post',
     params
   })
@@ -72,7 +73,7 @@ export function calcDailyRevenue(params) {
 
 export function calcMonthlyRevenue(params) {
   return request({
-    url: '/api/revenue/calc/monthly',
+    url: '/api/revenue/calculate/monthly',
     method: 'post',
     params
   })
@@ -80,7 +81,7 @@ export function calcMonthlyRevenue(params) {
 
 export function calcBatchDailyRevenue(params) {
   return request({
-    url: '/api/revenue/calc/batch',
+    url: '/api/revenue/calculate/all-daily',
     method: 'post',
     params
   })
@@ -89,8 +90,8 @@ export function calcBatchDailyRevenue(params) {
 export function getRevenueDashboard(params) {
   return request({
     url: '/api/revenue/statistics/dashboard',
-    method: 'post',
-    data: params
+    method: 'get',
+    params
   })
 }
 

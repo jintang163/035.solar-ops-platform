@@ -14,5 +14,11 @@ public interface RevenueCalculateService {
 
     void calculateAllStationsDailyRevenue(LocalDate date);
 
+    RevenueStatistics calculateYearlyRevenue(Long stationId, Integer year);
+
+    void calculateAllStationsMonthlyRevenue(Integer year, Integer month);
+
+    void calculateAllStationsYearlyRevenue(Integer year);
+
     BigDecimal calculateUnitCost(Long stationId, BigDecimal energy);
 }

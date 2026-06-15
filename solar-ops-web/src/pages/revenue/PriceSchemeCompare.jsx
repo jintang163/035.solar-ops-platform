@@ -40,11 +40,7 @@ const PriceSchemeCompare = () => {
   const [compareLoading, setCompareLoading] = useState(false)
   const [paramForm] = Form.useForm()
 
-  useEffect(() => {
-    loadSchemeList()
-  }, [])
-
-  const loadSchemeList = async () => {
+  const loadSchemeList = useCallback(async () => {
     setLoading(true)
     try {
       const res = await getPriceSchemeAll({ status: 1 })
@@ -54,7 +50,11 @@ const PriceSchemeCompare = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    loadSchemeList()
+  }, [loadSchemeList])
 
   const handleCompare = async () => {
     if (selectedSchemes.length === 0) {
@@ -69,14 +69,15 @@ const PriceSchemeCompare = () => {
     try {
       const values = await paramForm.validateFields()
       setCompareLoading(true)
-      const params = {
-        schemeIds: selectedSchemes,
-        totalInvestment: values.totalInvestment,
-        annualOprCost: values.annualOprCost,
-        designLife: values.designLife,
-        annualGeneration: values.annualGeneration
+      const data = {
+        schemeIds: selectedSchemes
       }
-      const res = await comparePriceSchemes(params)
+      const params = {
+        totalInvestment: values.totalInvestment,
+        annualOperationCost: values.annualOperationCost,
+        designLife: values.designLife
+      }
+      const res = await comparePriceSchemes(data, params)
       setCompareResult(res.data || [])
       message.success('对比计算完成')
     } catch (error) {
@@ -113,7 +114,7 @@ const PriceSchemeCompare = () => {
       key: 'schemeName',
       width: 180,
       fixed: 'left',
-      render: (text, record) => (
+      render: (text) => (
         <div style={{ fontWeight: 500 }}>{text}</div>
       )
     },
@@ -138,57 +139,29 @@ const PriceSchemeCompare = () => {
     },
     {
       title: '预计年发电量',
-      dataIndex: 'annualGeneration',
-      key: 'annualGeneration',
-      width: 140,
-      align: 'right',
-      render: (val) => (
-        <div>
-          <span style={{ fontWeight: 500 }}>{formatNumber(val)}</span>
-          <div style={{ fontSize: 11, color: '#999' }}>kWh</div>
-        </div>
-      )
-    },
-    {
-      title: '预计年收益',
-      dataIndex: 'annualRevenue',
-      key: 'annualRevenue',
+      dataIndex: 'estimatedYearEnergy',
+      key: 'estimatedYearEnergy',
       width: 140,
       align: 'right',
       render: (val, record) => {
-        const bestId = getBestIndicator('annualRevenue', true)
+        const bestId = getBestIndicator('estimatedYearEnergy', true)
         return (
           <div>
-            <span style={{ color: '#52c41a', fontWeight: record.schemeId === bestId ? 600 : 500 }}>
-              ¥{formatNumber(val)}
-            </span>
-            {record.schemeId === bestId && <Tag color="green" style={{ marginLeft: 4 }}>最高</Tag>}
-            <div style={{ fontSize: 11, color: '#999' }}>元/年</div>
+            <span style={{ fontWeight: record.schemeId === bestId ? 600 : 500 }}>{formatNumber(val)}</span>
+            {record.schemeId === bestId && <Tag color="blue" style={{ marginLeft: 4 }}>最高</Tag>}
+            <div style={{ fontSize: 11, color: '#999' }}>kWh</div>
           </div>
         )
       }
     },
     {
-      title: '年运维成本',
-      dataIndex: 'annualOprCost',
-      key: 'annualOprCost',
-      width: 140,
-      align: 'right',
-      render: (val) => (
-        <div>
-          <span style={{ color: '#fa8c16', fontWeight: 500 }}>¥{formatNumber(val)}</span>
-          <div style={{ fontSize: 11, color: '#999' }}>元/年</div>
-        </div>
-      )
-    },
-    {
-      title: '年净利润',
-      dataIndex: 'annualProfit',
-      key: 'annualProfit',
+      title: '预计年收益',
+      dataIndex: 'estimatedYearRevenue',
+      key: 'estimatedYearRevenue',
       width: 140,
       align: 'right',
       render: (val, record) => {
-        const bestId = getBestIndicator('annualProfit', true)
+        const bestId = getBestIndicator('estimatedYearRevenue', true)
         return (
           <div>
             <span style={{ color: '#52c41a', fontWeight: record.schemeId === bestId ? 600 : 500 }}>
@@ -220,12 +193,12 @@ const PriceSchemeCompare = () => {
     },
     {
       title: '投资回收期',
-      dataIndex: 'paybackYears',
-      key: 'paybackYears',
+      dataIndex: 'paybackPeriod',
+      key: 'paybackPeriod',
       width: 130,
       align: 'right',
       render: (val, record) => {
-        const bestId = getBestIndicator('paybackYears', false)
+        const bestId = getBestIndicator('paybackPeriod', false)
         return (
           <div>
             <span style={{ color: '#13c2c2', fontWeight: record.schemeId === bestId ? 600 : 500 }}>
@@ -233,25 +206,6 @@ const PriceSchemeCompare = () => {
             </span>
             {record.schemeId === bestId && <Tag color="cyan" style={{ marginLeft: 4 }}>最短</Tag>}
             <div style={{ fontSize: 11, color: '#999' }}>年</div>
-          </div>
-        )
-      }
-    },
-    {
-      title: '全生命周期收益',
-      dataIndex: 'lifetimeProfit',
-      key: 'lifetimeProfit',
-      width: 160,
-      align: 'right',
-      render: (val, record) => {
-        const bestId = getBestIndicator('lifetimeProfit', true)
-        return (
-          <div>
-            <span style={{ color: '#eb2f96', fontWeight: record.schemeId === bestId ? 600 : 500 }}>
-              ¥{formatNumber(val)}
-            </span>
-            {record.schemeId === bestId && <Tag color="magenta" style={{ marginLeft: 4 }}>最高</Tag>}
-            <div style={{ fontSize: 11, color: '#999' }}>元</div>
           </div>
         )
       }
@@ -305,7 +259,7 @@ const PriceSchemeCompare = () => {
       {
         name: '年收益(万元)',
         type: 'bar',
-        data: compareResult.map(d => Number(d.annualRevenue || 0) / 10000),
+        data: compareResult.map(d => Number(d.estimatedYearRevenue || 0) / 10000),
         itemStyle: {
           color: {
             type: 'linear',
@@ -384,9 +338,9 @@ const PriceSchemeCompare = () => {
         name: '投资回收期(年)',
         type: 'bar',
         data: compareResult.map(d => ({
-          value: Number(d.paybackYears || 0),
+          value: Number(d.paybackPeriod || 0),
           itemStyle: {
-            color: Number(d.paybackYears || 0) < 10 ? '#52c41a' : Number(d.paybackYears || 0) < 15 ? '#fa8c16' : '#ff4d4f',
+            color: Number(d.paybackPeriod || 0) < 10 ? '#52c41a' : Number(d.paybackPeriod || 0) < 15 ? '#fa8c16' : '#ff4d4f',
             borderRadius: [4, 4, 0, 0]
           }
         })),
@@ -472,9 +426,8 @@ const PriceSchemeCompare = () => {
             >
               <Form form={paramForm} layout="vertical" initialValues={{
                 totalInvestment: 5000000,
-                annualOprCost: 150000,
-                designLife: 25,
-                annualGeneration: 1200000
+                annualOperationCost: 150000,
+                designLife: 25
               }}>
                 <Form.Item
                   name="totalInvestment"
@@ -494,7 +447,7 @@ const PriceSchemeCompare = () => {
                   />
                 </Form.Item>
                 <Form.Item
-                  name="annualOprCost"
+                  name="annualOperationCost"
                   label={
                     <Tooltip title="年度运维成本，包括人工、耗材、维修等费用">
                       年运维成本 (元)
@@ -526,34 +479,15 @@ const PriceSchemeCompare = () => {
                     style={{ width: '100%' }}
                   />
                 </Form.Item>
-                <Form.Item
-                  name="annualGeneration"
-                  label={
-                    <Tooltip title="预计年发电量，可根据历史数据或设计指标填写">
-                      预计年发电量 (kWh)
-                    </Tooltip>
-                  }
-                  rules={[{ required: true, message: '请输入预计年发电量' }]}
-                >
-                  <InputNumber
-                    placeholder="请输入"
-                    min={0}
-                    style={{ width: '100%' }}
-                    formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                    parser={value => value.replace(/\$\s?|(,*)/g, '')}
-                  />
-                </Form.Item>
               </Form>
 
               <Divider style={{ margin: '12px 0' }} />
 
               <div style={{ fontSize: 12, color: '#999', lineHeight: 1.6 }}>
                 <div style={{ fontWeight: 500, color: '#666', marginBottom: 6 }}>计算公式说明：</div>
-                <div>• 年收益 = 年发电量 × 综合电价</div>
-                <div>• 年净利润 = 年收益 - 年运维成本</div>
-                <div>• ROI = 年净利润 / 总投资 × 100%</div>
-                <div>• 投资回收期 = 总投资 / 年净利润</div>
-                <div>• 全生命周期收益 = 年净利润 × 设计寿命 - 总投资</div>
+                <div>• 预计年收益 = 年发电量 × 综合电价</div>
+                <div>• ROI = (年收益 - 年运维成本) / 总投资 × 100%</div>
+                <div>• 投资回收期 = 总投资 / (年收益 - 年运维成本)</div>
               </div>
             </Card>
           </Col>
@@ -589,7 +523,7 @@ const PriceSchemeCompare = () => {
                             prefix={<DollarOutlined />}
                           />
                           <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
-                            回收期: {formatNumber(item.paybackYears, 2)} 年
+                            回收期: {formatNumber(item.paybackPeriod, 2)} 年
                           </div>
                         </Card>
                       </Col>
@@ -599,7 +533,7 @@ const PriceSchemeCompare = () => {
                     columns={columns}
                     dataSource={compareResult}
                     rowKey="schemeId"
-                    scroll={{ x: 1200 }}
+                    scroll={{ x: 900 }}
                     pagination={false}
                     size="small"
                   />

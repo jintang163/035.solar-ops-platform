@@ -9,7 +9,12 @@ import {
   Tag,
   Select,
   Empty,
-  Tooltip
+  Tooltip,
+  Modal,
+  Form,
+  InputNumber,
+  Button,
+  message
 } from 'antd'
 import {
   ThunderboltOutlined,
@@ -19,7 +24,8 @@ import {
   TrophyOutlined,
   DashboardOutlined,
   LineChartOutlined,
-  BarChartOutlined
+  BarChartOutlined,
+  SettingOutlined
 } from '@ant-design/icons'
 import StatCard from '../../components/StatCard'
 import ChartCard from '../../components/ChartCard'
@@ -37,15 +43,24 @@ const RevenueDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null)
   const [trendData, setTrendData] = useState([])
   const [rankData, setRankData] = useState([])
+  const [investModalVisible, setInvestModalVisible] = useState(false)
+  const [investForm] = Form.useForm()
+  const [investParams, setInvestParams] = useState(null)
 
-  const fetchData = useCallback(async (sid) => {
+  const fetchData = useCallback(async (sid, invest) => {
     setLoading(true)
     try {
-      const params = sid ? { stationId: sid } : {}
+      const params = {}
+      if (sid) params.stationId = sid
+      if (invest) {
+        params.totalInvestment = invest.totalInvestment
+        params.annualOperationCost = invest.annualOperationCost
+        params.designLife = invest.designLife
+      }
       const [dashboardRes, trendRes, rankRes] = await Promise.all([
         getRevenueDashboard(params),
-        getRevenueTrend({ days: 30, ...params }),
-        getRevenueStationRank(params)
+        getRevenueTrend({ days: 30, ...(sid ? { stationId: sid } : {}) }),
+        getRevenueStationRank(sid ? { stationId: sid } : {})
       ])
       setDashboardData(dashboardRes.data || {})
       setTrendData(trendRes.data || [])
@@ -60,8 +75,19 @@ const RevenueDashboard = () => {
   }, [])
 
   useEffect(() => {
-    fetchData(stationId)
-  }, [stationId, fetchData])
+    fetchData(stationId, investParams)
+  }, [stationId, investParams, fetchData])
+
+  const handleInvestOk = async () => {
+    try {
+      const values = await investForm.validateFields()
+      setInvestParams(values)
+      setInvestModalVisible(false)
+      message.success('投资参数已更新，正在重新计算ROI')
+    } catch {
+      // ignore
+    }
+  }
 
   const formatNumber = (num, decimals = 2) => {
     if (num == null) return '0.00'
@@ -80,7 +106,7 @@ const RevenueDashboard = () => {
       }
     },
     legend: {
-      data: ['发电量', '收益'],
+      data: ['上网电量', '收益'],
       top: 0
     },
     grid: {
@@ -92,7 +118,7 @@ const RevenueDashboard = () => {
     },
     xAxis: {
       type: 'category',
-      data: trendData.map(d => d.date?.slice(5) || ''),
+      data: trendData.map(d => d.period?.slice(5) || ''),
       axisLabel: {
         fontSize: 11
       }
@@ -100,7 +126,7 @@ const RevenueDashboard = () => {
     yAxis: [
       {
         type: 'value',
-        name: '发电量(kWh)',
+        name: '上网电量(kWh)',
         axisLabel: {
           fontSize: 11
         }
@@ -115,9 +141,9 @@ const RevenueDashboard = () => {
     ],
     series: [
       {
-        name: '发电量',
+        name: '上网电量',
         type: 'bar',
-        data: trendData.map(d => Number(d.power || 0)),
+        data: trendData.map(d => Number(d.gridEnergy || 0)),
         itemStyle: {
           color: {
             type: 'linear',
@@ -136,7 +162,7 @@ const RevenueDashboard = () => {
         type: 'line',
         yAxisIndex: 1,
         smooth: true,
-        data: trendData.map(d => Number(d.revenue || 0)),
+        data: trendData.map(d => Number(d.totalRevenue || 0)),
         itemStyle: {
           color: '#52c41a'
         },
@@ -174,7 +200,7 @@ const RevenueDashboard = () => {
     },
     xAxis: {
       type: 'category',
-      data: trendData.map(d => d.date?.slice(5) || ''),
+      data: trendData.map(d => d.period?.slice(5) || ''),
       axisLabel: {
         fontSize: 11
       }
@@ -191,7 +217,7 @@ const RevenueDashboard = () => {
         name: '度电成本',
         type: 'line',
         smooth: true,
-        data: trendData.map(d => Number(d.unitCost || 0)),
+        data: trendData.map(d => Number(d.totalRevenue || 0)),
         itemStyle: {
           color: '#fa8c16'
         },
@@ -220,8 +246,8 @@ const RevenueDashboard = () => {
     ]
   }
 
-  const roiPercent = Number(dashboardData?.roiPercent || 0)
-  const paybackYears = Number(dashboardData?.paybackYears || 0)
+  const roiValue = Number(dashboardData?.roi || 0)
+  const paybackPeriod = Number(dashboardData?.paybackPeriod || 0)
 
   return (
     <div className="revenue-dashboard-page">
@@ -249,8 +275,6 @@ const RevenueDashboard = () => {
             prefix="¥"
             icon={<DollarOutlined />}
             color="#52c41a"
-            trend="up"
-            trendValue={`${Number(dashboardData?.todayGrowth || 0).toFixed(1)}%`}
           />
         </Col>
         <Col xs={12} sm={12} md={6}>
@@ -286,7 +310,7 @@ const RevenueDashboard = () => {
         <Col xs={12} sm={12} md={6}>
           <StatCard
             title="今日电量"
-            value={formatNumber(dashboardData?.todayPower)}
+            value={formatNumber(dashboardData?.todayEnergy)}
             suffix="kWh"
             icon={<ThunderboltOutlined />}
             color="#13c2c2"
@@ -295,7 +319,7 @@ const RevenueDashboard = () => {
         <Col xs={12} sm={12} md={6}>
           <StatCard
             title="本月电量"
-            value={formatNumber(dashboardData?.monthPower)}
+            value={formatNumber(dashboardData?.monthEnergy)}
             suffix="kWh"
             icon={<DashboardOutlined />}
             color="#2f54eb"
@@ -313,7 +337,7 @@ const RevenueDashboard = () => {
         <Col xs={12} sm={12} md={6}>
           <StatCard
             title="平均上网电价"
-            value={Number(dashboardData?.avgPrice || 0).toFixed(4)}
+            value={Number(dashboardData?.avgGridPrice || 0).toFixed(4)}
             suffix="元/kWh"
             icon={<RiseOutlined />}
             color="#faad14"
@@ -324,7 +348,7 @@ const RevenueDashboard = () => {
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} lg={16}>
           <Card title="收益趋势（近30天）" loading={loading}>
-            {trendData.some(d => Number(d.power) > 0 || Number(d.revenue) > 0) ? (
+            {trendData.some(d => Number(d.gridEnergy) > 0 || Number(d.totalRevenue) > 0) ? (
               <ChartCard option={revenueTrendOption} height={320} />
             ) : (
               <Empty description="暂无数据" style={{ padding: '60px 0' }} />
@@ -333,7 +357,7 @@ const RevenueDashboard = () => {
         </Col>
         <Col xs={24} lg={8}>
           <Card title="度电成本趋势（近30天）" loading={loading}>
-            {trendData.some(d => Number(d.unitCost) > 0) ? (
+            {trendData.some(d => Number(d.totalRevenue) > 0) ? (
               <ChartCard option={costTrendOption} height={320} />
             ) : (
               <Empty description="暂无数据" style={{ padding: '60px 0' }} />
@@ -382,10 +406,10 @@ const RevenueDashboard = () => {
                       </span>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ color: '#52c41a', fontWeight: 500 }}>
-                          ¥{formatNumber(item.revenue)}
+                          ¥{formatNumber(item.totalRevenue)}
                         </div>
                         <div style={{ fontSize: 12, color: '#999' }}>
-                          {formatNumber(item.power)} kWh
+                          {formatNumber(item.totalEnergy)} kWh
                         </div>
                       </div>
                     </div>
@@ -405,20 +429,34 @@ const RevenueDashboard = () => {
                 ROI 投资回报率
               </span>
             }
+            extra={
+              <Button
+                type="link"
+                icon={<SettingOutlined />}
+                onClick={() => {
+                  if (investParams) {
+                    investForm.setFieldsValue(investParams)
+                  }
+                  setInvestModalVisible(true)
+                }}
+              >
+                设置投资参数
+              </Button>
+            }
             loading={loading}
           >
             <div style={{ padding: '16px 0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: 24 }}>
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 36, fontWeight: 600, color: '#52c41a' }}>
-                    {roiPercent.toFixed(2)}%
+                    {roiValue.toFixed(2)}%
                   </div>
                   <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>投资回报率 (ROI)</div>
                 </div>
                 <div style={{ width: 1, background: '#f0f0f0' }} />
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 36, fontWeight: 600, color: '#1890ff' }}>
-                    {paybackYears.toFixed(1)}
+                    {paybackPeriod.toFixed(1)}
                   </div>
                   <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>投资回收年限 (年)</div>
                 </div>
@@ -428,9 +466,9 @@ const RevenueDashboard = () => {
                 <div style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>
                   ROI 分析
                 </div>
-                <Tooltip title={`当前投资回报率 ${roiPercent.toFixed(2)}%，预计 ${paybackYears.toFixed(1)} 年收回投资成本`}>
+                <Tooltip title={`当前投资回报率 ${roiValue.toFixed(2)}%，预计 ${paybackPeriod.toFixed(1)} 年收回投资成本`}>
                   <Progress
-                    percent={Math.min(100, roiPercent)}
+                    percent={Math.min(100, roiValue)}
                     strokeColor={{
                       '0%': '#108ee9',
                       '100%': '#87d068'
@@ -447,35 +485,73 @@ const RevenueDashboard = () => {
                   <div>• ROI = 年净利润 / 总投资 × 100%</div>
                   <div>• 投资回收年限 = 总投资 / 年净利润</div>
                   <div>• 数据基于当前电价方案和实际发电量计算</div>
+                  {!investParams && (
+                    <div style={{ marginTop: 8, color: '#fa8c16' }}>
+                      提示：当前ROI为0，请点击"设置投资参数"输入投资信息后计算
+                    </div>
+                  )}
                 </div>
-
-                <Row gutter={16} style={{ marginTop: 20 }}>
-                  <Col span={12}>
-                    <Card size="small" style={{ background: '#f6ffed' }}>
-                      <Statistic
-                        title="总投资"
-                        value={formatNumber(dashboardData?.totalInvestment)}
-                        prefix="¥"
-                        valueStyle={{ fontSize: 16, color: '#52c41a' }}
-                      />
-                    </Card>
-                  </Col>
-                  <Col span={12}>
-                    <Card size="small" style={{ background: '#e6f7ff' }}>
-                      <Statistic
-                        title="年净利润"
-                        value={formatNumber(dashboardData?.annualProfit)}
-                        prefix="¥"
-                        valueStyle={{ fontSize: 16, color: '#1890ff' }}
-                      />
-                    </Card>
-                  </Col>
-                </Row>
               </div>
             </div>
           </Card>
         </Col>
       </Row>
+
+      <Modal
+        title="设置投资参数"
+        open={investModalVisible}
+        onOk={handleInvestOk}
+        onCancel={() => setInvestModalVisible(false)}
+        okText="确认并重新计算"
+        cancelText="取消"
+        width={480}
+        destroyOnClose
+      >
+        <Form form={investForm} layout="vertical" initialValues={{
+          totalInvestment: 5000000,
+          annualOperationCost: 150000,
+          designLife: 25
+        }}>
+          <Form.Item
+            name="totalInvestment"
+            label="总投资金额 (元)"
+            rules={[{ required: true, message: '请输入总投资金额' }]}
+          >
+            <InputNumber
+              placeholder="请输入"
+              min={0}
+              style={{ width: '100%' }}
+              formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+            />
+          </Form.Item>
+          <Form.Item
+            name="annualOperationCost"
+            label="年运维成本 (元)"
+            rules={[{ required: true, message: '请输入年运维成本' }]}
+          >
+            <InputNumber
+              placeholder="请输入"
+              min={0}
+              style={{ width: '100%' }}
+              formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+            />
+          </Form.Item>
+          <Form.Item
+            name="designLife"
+            label="设计寿命 (年)"
+            rules={[{ required: true, message: '请输入设计寿命' }]}
+          >
+            <InputNumber
+              placeholder="请输入"
+              min={1}
+              max={50}
+              style={{ width: '100%' }}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   )
 }
