@@ -18,7 +18,9 @@ import {
   DroneOutlined,
   BugOutlined,
   DropletOutlined,
-  AreaChartOutlined
+  AreaChartOutlined,
+  DollarOutlined,
+  PieChartOutlined
 } from '@ant-design/icons'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { getUser, clearAuth } from '../utils/auth'
@@ -137,6 +139,30 @@ const menuItems = [
       {
         key: '/cleaning/plan',
         label: '清洗计划'
+      }
+    ]
+  },
+  {
+    key: '/revenue',
+    icon: <DollarOutlined />,
+    label: '收益管理',
+    children: [
+      {
+        key: '/revenue/dashboard',
+        icon: <PieChartOutlined />,
+        label: '收益仪表盘'
+      },
+      {
+        key: '/revenue/scheme',
+        label: '电价方案'
+      },
+      {
+        key: '/revenue/compare',
+        label: '方案对比'
+      },
+      {
+        key: '/revenue/statistics',
+        label: '收益统计'
       }
     ]
   },

@@ -33,4 +33,13 @@ public class PageResult<T> implements Serializable {
         result.setPageSize(pageSize);
         return result;
     }
+
+    public static <T> PageResult<T> build(List<T> list, Long total) {
+        PageResult<T> result = new PageResult<>();
+        result.setTotal(total);
+        result.setList(list);
+        result.setPageNum(1L);
+        result.setPageSize(10L);
+        return result;
+    }
 }

@@ -18,6 +18,10 @@ import DroneDefectList from '../pages/drone/DroneDefectList'
 import CleaningDashboard from '../pages/cleaning/CleaningDashboard'
 import CleaningPlanList from '../pages/cleaning/CleaningPlanList'
 import CleaningReminderList from '../pages/cleaning/CleaningReminderList'
+import RevenueDashboard from '../pages/revenue/RevenueDashboard'
+import PriceSchemeList from '../pages/revenue/PriceSchemeList'
+import PriceSchemeCompare from '../pages/revenue/PriceSchemeCompare'
+import RevenueStatistics from '../pages/revenue/RevenueStatistics'
 
 const routes = [
   {
@@ -44,6 +48,10 @@ const routes = [
       { path: 'cleaning/dashboard', element: <CleaningDashboard /> },
       { path: 'cleaning/plan', element: <CleaningPlanList /> },
       { path: 'cleaning/reminder', element: <CleaningReminderList /> },
+      { path: 'revenue/dashboard', element: <RevenueDashboard /> },
+      { path: 'revenue/scheme', element: <PriceSchemeList /> },
+      { path: 'revenue/compare', element: <PriceSchemeCompare /> },
+      { path: 'revenue/statistics', element: <RevenueStatistics /> },
       { path: 'settings/user', element: <UserManagement /> }
     ]
   },

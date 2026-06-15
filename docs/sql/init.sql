@@ -559,3 +559,74 @@ CREATE TABLE cleaning_plan (
     KEY idx_actual_start (actual_start_time),
     KEY idx_actual_end (actual_end_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='æ¸…æ´è®¡åˆ’è¡¨';
+
+-- =====================================================
+-- 17. µç¼Û·½°¸±í
+-- =====================================================
+DROP TABLE IF EXISTS electricity_price_scheme;
+CREATE TABLE electricity_price_scheme (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Ö÷¼üID',
+    scheme_name VARCHAR(100) NOT NULL COMMENT '·½°¸Ãû³Æ',
+    station_id BIGINT DEFAULT NULL COMMENT 'µçÕ¾ID£¨NULLÔòÎªÈ«¾ÖÄ¬ÈÏ·½°¸£©',
+    grid_price DECIMAL(10,4) NOT NULL DEFAULT 0.0000 COMMENT 'ÉÏÍøµç¼Û£¨Ôª/kWh£©',
+    benchmark_price DECIMAL(10,4) DEFAULT 0.0000 COMMENT 'ÍÑÁòÃº»ù×¼µç¼Û£¨Ôª/kWh£©',
+    national_subsidy DECIMAL(10,4) DEFAULT 0.0000 COMMENT '¹ú¼Ò²¹Ìùµç¼Û£¨Ôª/kWh£©',
+    provincial_subsidy DECIMAL(10,4) DEFAULT 0.0000 COMMENT 'Ê¡¼¶²¹Ìùµç¼Û£¨Ôª/kWh£©',
+    municipal_subsidy DECIMAL(10,4) DEFAULT 0.0000 COMMENT 'ÊĞ¼¶²¹Ìùµç¼Û£¨Ôª/kWh£©',
+    subsidy_start_date DATE DEFAULT NULL COMMENT '²¹Ìù¿ªÊ¼ÈÕÆÚ',
+    subsidy_end_date DATE DEFAULT NULL COMMENT '²¹Ìù½áÊøÈÕÆÚ£¨NULLÔò³¤ÆÚÓĞĞ§£©',
+    is_parity TINYINT DEFAULT 0 COMMENT 'ÊÇ·ñÆ½¼ÛÉÏÍø£º0·ñ 1ÊÇ',
+    is_default TINYINT DEFAULT 0 COMMENT 'ÊÇ·ñÎªÄ¬ÈÏ·½°¸£º0·ñ 1ÊÇ',
+    status TINYINT DEFAULT 1 COMMENT '×´Ì¬£º0Í£ÓÃ 1ÆôÓÃ',
+    remark VARCHAR(500) DEFAULT NULL COMMENT '±¸×¢',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '´´½¨Ê±¼ä',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '¸üĞÂÊ±¼ä',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT 'É¾³ı±ê¼Ç 0-Î´É¾³ı 1-ÒÑÉ¾³ı',
+    PRIMARY KEY (id),
+    KEY idx_station_id (station_id),
+    KEY idx_is_default (is_default),
+    KEY idx_status (status),
+    KEY idx_create_time (create_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='µç¼Û·½°¸±í';
+
+-- =====================================================
+-- 18. µç·ÑÊÕÒæÍ³¼Æ±í
+-- =====================================================
+DROP TABLE IF EXISTS revenue_statistics;
+CREATE TABLE revenue_statistics (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Ö÷¼üID',
+    station_id BIGINT NOT NULL COMMENT 'µçÕ¾ID',
+    price_scheme_id BIGINT NOT NULL COMMENT 'µç¼Û·½°¸ID',
+    statistics_date DATE NOT NULL COMMENT 'Í³¼ÆÈÕÆÚ',
+    statistics_type TINYINT NOT NULL DEFAULT 1 COMMENT 'Í³¼ÆÀàĞÍ£º1ÈÕ 2ÖÜ 3ÔÂ 4Äê',
+    grid_energy DECIMAL(12,2) DEFAULT 0.00 COMMENT 'ÉÏÍøµçÁ¿£¨kWh£©',
+    grid_revenue DECIMAL(12,2) DEFAULT 0.00 COMMENT 'ÉÏÍøµç·Ñ£¨Ôª£©',
+    national_subsidy_revenue DECIMAL(12,2) DEFAULT 0.00 COMMENT '¹ú¼Ò²¹Ìù½ğ¶î£¨Ôª£©',
+    provincial_subsidy_revenue DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Ê¡¼¶²¹Ìù½ğ¶î£¨Ôª£©',
+    municipal_subsidy_revenue DECIMAL(12,2) DEFAULT 0.00 COMMENT 'ÊĞ¼¶²¹Ìù½ğ¶î£¨Ôª£©',
+    total_subsidy_revenue DECIMAL(12,2) DEFAULT 0.00 COMMENT '²¹Ìù×Ü½ğ¶î£¨Ôª£©',
+    total_revenue DECIMAL(12,2) DEFAULT 0.00 COMMENT '×ÜÊÕÒæ£¨Ôª£©',
+    unit_energy_cost DECIMAL(10,4) DEFAULT 0.0000 COMMENT '¶Èµç³É±¾£¨Ôª/kWh£©',
+    operation_cost DECIMAL(12,2) DEFAULT 0.00 COMMENT 'ÔËÎ¬³É±¾£¨Ôª£©',
+    effective_grid_price DECIMAL(10,4) DEFAULT 0.0000 COMMENT 'Êµ¼ÊÉÏÍøµç¼Û£¨Ôª/kWh£©',
+    settlement_status TINYINT DEFAULT 0 COMMENT '½áËã×´Ì¬£º0Î´½áËã 1ÒÑ½áËã',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '´´½¨Ê±¼ä',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '¸üĞÂÊ±¼ä',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT 'É¾³ı±ê¼Ç 0-Î´É¾³ı 1-ÒÑÉ¾³ı',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_station_date_type (station_id, statistics_date, statistics_type),
+    KEY idx_station_id (station_id),
+    KEY idx_price_scheme_id (price_scheme_id),
+    KEY idx_statistics_date (statistics_date),
+    KEY idx_statistics_type (statistics_type),
+    KEY idx_settlement_status (settlement_status),
+    KEY idx_create_time (create_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='µç·ÑÊÕÒæÍ³¼Æ±í';
+
+-- =====================================================
+-- ³õÊ¼»¯µç¼Û·½°¸Êı¾İ
+-- =====================================================
+INSERT INTO electricity_price_scheme (scheme_name, station_id, grid_price, benchmark_price, national_subsidy, provincial_subsidy, municipal_subsidy, subsidy_start_date, subsidy_end_date, is_parity, is_default, status, remark) VALUES
+('È«¹úÄ¬ÈÏÉÏÍøµç¼Û·½°¸', NULL, 0.3964, 0.3964, 0.0000, 0.0000, 0.0000, NULL, NULL, 1, 1, 1, 'È«¹úÄ¬ÈÏÆ½¼ÛÉÏÍøµç¼Û·½°¸'),
+('±±¾©¹â·üÉÏÍøµç¼Û£¨º¬²¹Ìù£©', 1, 0.3964, 0.3964, 0.0500, 0.0300, 0.0200, '2023-01-01', '2025-12-31', 0, 0, 1, '±±¾©µØÇø¹â·üÉÏÍøµç¼Û£¬º¬¹ú¼Ò²¹Ìù0.05Ôª¡¢Ê¡¼¶²¹Ìù0.03Ôª¡¢ÊĞ¼¶²¹Ìù0.02Ôª'),
+('ÉÏº£¹â·üÉÏÍøµç¼Û£¨º¬²¹Ìù£©', 2, 0.4155, 0.4155, 0.0500, 0.0250, 0.0150, '2023-01-01', '2025-12-31', 0, 0, 1, 'ÉÏº£µØÇø¹â·üÉÏÍøµç¼Û£¬º¬¹ú¼Ò²¹Ìù0.05Ôª¡¢Ê¡¼¶²¹Ìù0.025Ôª¡¢ÊĞ¼¶²¹Ìù0.015Ôª');

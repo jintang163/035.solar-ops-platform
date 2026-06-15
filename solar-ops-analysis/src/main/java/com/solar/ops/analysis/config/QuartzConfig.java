@@ -4,6 +4,7 @@ import com.solar.ops.analysis.job.CleaningImprovementCalcJob;
 import com.solar.ops.analysis.job.DailyStatisticsJob;
 import com.solar.ops.analysis.job.DustDetectionJob;
 import com.solar.ops.analysis.job.EfficiencyCalculateJob;
+import com.solar.ops.analysis.job.RevenueCalculateJob;
 import com.solar.ops.analysis.job.WarrantyReminderJob;
 import org.quartz.*;
 import org.springframework.context.annotation.Bean;
@@ -98,6 +99,24 @@ public class QuartzConfig {
         return TriggerBuilder.newTrigger()
                 .forJob(cleaningImprovementCalcJobDetail())
                 .withIdentity("cleaningImprovementCalcTrigger")
+                .withSchedule(scheduleBuilder)
+                .build();
+    }
+
+    @Bean
+    public JobDetail revenueCalculateJobDetail() {
+        return JobBuilder.newJob(RevenueCalculateJob.class)
+                .withIdentity("revenueCalculateJob")
+                .storeDurably()
+                .build();
+    }
+
+    @Bean
+    public Trigger revenueCalculateTrigger() {
+        CronScheduleBuilder scheduleBuilder = CronScheduleBuilder.cronSchedule("0 30 1 * * ?");
+        return TriggerBuilder.newTrigger()
+                .forJob(revenueCalculateJobDetail())
+                .withIdentity("revenueCalculateTrigger")
                 .withSchedule(scheduleBuilder)
                 .build();
     }
