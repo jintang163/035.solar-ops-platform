@@ -1,0 +1,67 @@
+package com.solar.ops.admin.entity;
+
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.solar.ops.common.entity.BaseEntity;
+import io.swagger.annotations.ApiModel;
+import io.swagger.annotations.ApiModelProperty;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+
+import java.math.BigDecimal;
+
+@Data
+@EqualsAndHashCode(callSuper = true)
+@TableName("spare_part_stocktake_item")
+@ApiModel(value = "SparePartStocktakeItem对象", description = "备件库存盘点明细表")
+public class SparePartStocktakeItem extends BaseEntity {
+
+    private static final long serialVersionUID = 1L;
+
+    @ApiModelProperty(value = "盘点单ID")
+    private Long stocktakeId;
+
+    @ApiModelProperty(value = "盘点单号")
+    private String stocktakeNo;
+
+    @ApiModelProperty(value = "备件ID")
+    private Long partId;
+
+    @ApiModelProperty(value = "备件编号")
+    private String partCode;
+
+    @ApiModelProperty(value = "备件名称")
+    private String partName;
+
+    @ApiModelProperty(value = "备件型号")
+    private String partModel;
+
+    @ApiModelProperty(value = "备件类型")
+    private String partType;
+
+    @ApiModelProperty(value = "单位")
+    private String unit;
+
+    @ApiModelProperty(value = "单价")
+    private BigDecimal unitPrice;
+
+    @ApiModelProperty(value = "系统库存数量")
+    private Integer systemQuantity;
+
+    @ApiModelProperty(value = "实际盘点数量")
+    private Integer actualQuantity;
+
+    @ApiModelProperty(value = "差异数量（实际-系统）")
+    private Integer diffQuantity;
+
+    @ApiModelProperty(value = "差异类型 0-无差异 1-盘盈 2-盘亏")
+    private Integer diffType;
+
+    @ApiModelProperty(value = "差异金额")
+    private BigDecimal diffAmount;
+
+    @ApiModelProperty(value = "存放位置")
+    private String storageLocation;
+
+    @ApiModelProperty(value = "差异原因")
+    private String remark;
+}

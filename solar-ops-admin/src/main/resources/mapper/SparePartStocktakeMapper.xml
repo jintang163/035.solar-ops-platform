@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.solar.ops.admin.mapper.SparePartStocktakeMapper">
+
+    <resultMap id="SparePartStocktakeVOMap" type="com.solar.ops.admin.vo.SparePartStocktakeVO">
+        <id column="id" property="id"/>
+        <result column="stocktake_no" property="stocktakeNo"/>
+        <result column="stocktake_name" property="stocktakeName"/>
+        <result column="stocktake_type" property="stocktakeType"/>
+        <result column="stocktake_type_desc" property="stocktakeTypeDesc"/>
+        <result column="warehouse" property="warehouse"/>
+        <result column="part_type" property="partType"/>
+        <result column="status" property="status"/>
+        <result column="status_desc" property="statusDesc"/>
+        <result column="total_count" property="totalCount"/>
+        <result column="diff_count" property="diffCount"/>
+        <result column="profit_quantity" property="profitQuantity"/>
+        <result column="loss_quantity" property="lossQuantity"/>
+        <result column="total_amount" property="totalAmount"/>
+        <result column="diff_amount" property="diffAmount"/>
+        <result column="stocktake_time" property="stocktakeTime"/>
+        <result column="operator_id" property="operatorId"/>
+        <result column="operator_name" property="operatorName"/>
+        <result column="complete_time" property="completeTime"/>
+        <result column="remark" property="remark"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <select id="selectStocktakePage" resultMap="SparePartStocktakeVOMap">
+        SELECT
+            s.id,
+            s.stocktake_no,
+            s.stocktake_name,
+            s.stocktake_type,
+            CASE s.stocktake_type
+                WHEN 1 THEN '全盘'
+                WHEN 2 THEN '抽盘'
+                WHEN 3 THEN '专项盘点'
+                ELSE '未知'
+            END AS stocktake_type_desc,
+            s.warehouse,
+            s.part_type,
+            s.status,
+            CASE s.status
+                WHEN 0 THEN '待盘点'
+                WHEN 1 THEN '盘点中'
+                WHEN 2 THEN '已完成'
+                WHEN 3 THEN '已取消'
+                ELSE '未知'
+            END AS status_desc,
+            s.total_count,
+            s.diff_count,
+            s.profit_quantity,
+            s.loss_quantity,
+            s.total_amount,
+            s.diff_amount,
+            s.stocktake_time,
+            s.operator_id,
+            s.operator_name,
+            s.complete_time,
+            s.remark,
+            s.create_time,
+            s.update_time
+        FROM spare_part_stocktake s
+        WHERE s.deleted = 0
+        <if test="query.keyword != null and query.keyword != ''">
+            AND (
+                s.stocktake_name LIKE CONCAT('%', #{query.keyword}, '%')
+                OR s.stocktake_no LIKE CONCAT('%', #{query.keyword}, '%')
+            )
+        </if>
+        <if test="query.stocktakeType != null">
+            AND s.stocktake_type = #{query.stocktakeType}
+        </if>
+        <if test="query.status != null">
+            AND s.status = #{query.status}
+        </if>
+        <if test="query.warehouse != null and query.warehouse != ''">
+            AND s.warehouse = #{query.warehouse}
+        </if>
+        <if test="query.startTime != null">
+            AND s.create_time &gt;= #{query.startTime}
+        </if>
+        <if test="query.endTime != null">
+            AND s.create_time &lt;= #{query.endTime}
+        </if>
+        ORDER BY s.create_time DESC
+    </select>
+
+    <select id="selectStocktakeDetailById" resultMap="SparePartStocktakeVOMap">
+        SELECT
+            s.id,
+            s.stocktake_no,
+            s.stocktake_name,
+            s.stocktake_type,
+            CASE s.stocktake_type
+                WHEN 1 THEN '全盘'
+                WHEN 2 THEN '抽盘'
+                WHEN 3 THEN '专项盘点'
+                ELSE '未知'
+            END AS stocktake_type_desc,
+            s.warehouse,
+            s.part_type,
+            s.status,
+            CASE s.status
+                WHEN 0 THEN '待盘点'
+                WHEN 1 THEN '盘点中'
+                WHEN 2 THEN '已完成'
+                WHEN 3 THEN '已取消'
+                ELSE '未知'
+            END AS status_desc,
+            s.total_count,
+            s.diff_count,
+            s.profit_quantity,
+            s.loss_quantity,
+            s.total_amount,
+            s.diff_amount,
+            s.stocktake_time,
+            s.operator_id,
+            s.operator_name,
+            s.complete_time,
+            s.remark,
+            s.create_time,
+            s.update_time
+        FROM spare_part_stocktake s
+        WHERE s.id = #{id} AND s.deleted = 0
+    </select>
+
+</mapper>

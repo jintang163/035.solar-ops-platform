@@ -5,6 +5,7 @@ import com.solar.ops.analysis.job.DailyStatisticsJob;
 import com.solar.ops.analysis.job.DustDetectionJob;
 import com.solar.ops.analysis.job.EfficiencyCalculateJob;
 import com.solar.ops.analysis.job.RevenueCalculateJob;
+import com.solar.ops.analysis.job.SparePartStockCheckJob;
 import com.solar.ops.analysis.job.WarrantyReminderJob;
 import org.quartz.*;
 import org.springframework.context.annotation.Bean;
@@ -117,6 +118,24 @@ public class QuartzConfig {
         return TriggerBuilder.newTrigger()
                 .forJob(revenueCalculateJobDetail())
                 .withIdentity("revenueCalculateTrigger")
+                .withSchedule(scheduleBuilder)
+                .build();
+    }
+
+    @Bean
+    public JobDetail sparePartStockCheckJobDetail() {
+        return JobBuilder.newJob(SparePartStockCheckJob.class)
+                .withIdentity("sparePartStockCheckJob")
+                .storeDurably()
+                .build();
+    }
+
+    @Bean
+    public Trigger sparePartStockCheckTrigger() {
+        CronScheduleBuilder scheduleBuilder = CronScheduleBuilder.cronSchedule("0 0 8 * * ?");
+        return TriggerBuilder.newTrigger()
+                .forJob(sparePartStockCheckJobDetail())
+                .withIdentity("sparePartStockCheckTrigger")
                 .withSchedule(scheduleBuilder)
                 .build();
     }

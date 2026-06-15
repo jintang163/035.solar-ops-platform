@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.solar.ops.admin.mapper.SparePartInOutRecordMapper">
+
+    <resultMap id="SparePartInOutRecordVOMap" type="com.solar.ops.admin.vo.SparePartInOutRecordVO">
+        <id column="id" property="id"/>
+        <result column="record_no" property="recordNo"/>
+        <result column="record_type" property="recordType"/>
+        <result column="record_type_desc" property="recordTypeDesc"/>
+        <result column="in_out_type" property="inOutType"/>
+        <result column="in_out_type_desc" property="inOutTypeDesc"/>
+        <result column="part_id" property="partId"/>
+        <result column="part_code" property="partCode"/>
+        <result column="part_name" property="partName"/>
+        <result column="part_model" property="partModel"/>
+        <result column="quantity" property="quantity"/>
+        <result column="unit_price" property="unitPrice"/>
+        <result column="total_price" property="totalPrice"/>
+        <result column="before_quantity" property="beforeQuantity"/>
+        <result column="after_quantity" property="afterQuantity"/>
+        <result column="work_order_id" property="workOrderId"/>
+        <result column="work_order_no" property="workOrderNo"/>
+        <result column="maintenance_record_id" property="maintenanceRecordId"/>
+        <result column="asset_id" property="assetId"/>
+        <result column="supplier" property="supplier"/>
+        <result column="operator_id" property="operatorId"/>
+        <result column="operator_name" property="operatorName"/>
+        <result column="operate_time" property="operateTime"/>
+        <result column="storage_location" property="storageLocation"/>
+        <result column="batch_no" property="batchNo"/>
+        <result column="remark" property="remark"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <select id="selectRecordPage" resultMap="SparePartInOutRecordVOMap">
+        SELECT
+            r.id,
+            r.record_no,
+            r.record_type,
+            CASE r.record_type
+                WHEN 1 THEN '入库'
+                WHEN 2 THEN '出库'
+                ELSE '未知'
+            END AS record_type_desc,
+            r.in_out_type,
+            CASE r.in_out_type
+                WHEN 11 THEN '采购入库'
+                WHEN 12 THEN '盘盈入库'
+                WHEN 13 THEN '退库入库'
+                WHEN 21 THEN '工单出库'
+                WHEN 22 THEN '盘亏出库'
+                WHEN 23 THEN '报废出库'
+                ELSE '未知'
+            END AS in_out_type_desc,
+            r.part_id,
+            r.part_code,
+            r.part_name,
+            r.part_model,
+            r.quantity,
+            r.unit_price,
+            r.total_price,
+            r.before_quantity,
+            r.after_quantity,
+            r.work_order_id,
+            r.work_order_no,
+            r.maintenance_record_id,
+            r.asset_id,
+            r.supplier,
+            r.operator_id,
+            r.operator_name,
+            r.operate_time,
+            r.storage_location,
+            r.batch_no,
+            r.remark,
+            r.create_time
+        FROM spare_part_in_out_record r
+        WHERE r.deleted = 0
+        <if test="query.keyword != null and query.keyword != ''">
+            AND (
+                r.part_name LIKE CONCAT('%', #{query.keyword}, '%')
+                OR r.part_code LIKE CONCAT('%', #{query.keyword}, '%')
+                OR r.record_no LIKE CONCAT('%', #{query.keyword}, '%')
+                OR r.part_model LIKE CONCAT('%', #{query.keyword}, '%')
+            )
+        </if>
+        <if test="query.recordType != null">
+            AND r.record_type = #{query.recordType}
+        </if>
+        <if test="query.inOutType != null">
+            AND r.in_out_type = #{query.inOutType}
+        </if>
+        <if test="query.partId != null">
+            AND r.part_id = #{query.partId}
+        </if>
+        <if test="query.workOrderId != null">
+            AND r.work_order_id = #{query.workOrderId}
+        </if>
+        <if test="query.startTime != null">
+            AND r.operate_time &gt;= #{query.startTime}
+        </if>
+        <if test="query.endTime != null">
+            AND r.operate_time &lt;= #{query.endTime}
+        </if>
+        <if test="query.operatorName != null and query.operatorName != ''">
+            AND r.operator_name LIKE CONCAT('%', #{query.operatorName}, '%')
+        </if>
+        ORDER BY r.operate_time DESC
+    </select>
+
+</mapper>

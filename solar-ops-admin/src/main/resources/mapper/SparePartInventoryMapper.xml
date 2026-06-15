@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.solar.ops.admin.mapper.SparePartInventoryMapper">
+
+    <resultMap id="SparePartInventoryVOMap" type="com.solar.ops.admin.vo.SparePartInventoryVO">
+        <id column="id" property="id"/>
+        <result column="part_code" property="partCode"/>
+        <result column="part_name" property="partName"/>
+        <result column="part_type" property="partType"/>
+        <result column="part_type_desc" property="partTypeDesc"/>
+        <result column="part_model" property="partModel"/>
+        <result column="brand" property="brand"/>
+        <result column="specification" property="specification"/>
+        <result column="unit" property="unit"/>
+        <result column="unit_price" property="unitPrice"/>
+        <result column="quantity" property="quantity"/>
+        <result column="safe_quantity" property="safeQuantity"/>
+        <result column="min_purchase_quantity" property="minPurchaseQuantity"/>
+        <result column="total_amount" property="totalAmount"/>
+        <result column="storage_location" property="storageLocation"/>
+        <result column="warehouse" property="warehouse"/>
+        <result column="supplier" property="supplier"/>
+        <result column="manufacturer" property="manufacturer"/>
+        <result column="status" property="status"/>
+        <result column="status_desc" property="statusDesc"/>
+        <result column="warn_status" property="warnStatus"/>
+        <result column="warn_status_desc" property="warnStatusDesc"/>
+        <result column="qr_code_url" property="qrCodeUrl"/>
+        <result column="remark" property="remark"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <select id="selectInventoryPage" resultMap="SparePartInventoryVOMap">
+        SELECT
+            i.id,
+            i.part_code,
+            i.part_name,
+            i.part_type,
+            CASE i.part_type
+                WHEN 'fan' THEN '风扇'
+                WHEN 'capacitor' THEN '电容'
+                WHEN 'board' THEN '板卡'
+                WHEN 'other' THEN '其他'
+                ELSE '未知'
+            END AS part_type_desc,
+            i.part_model,
+            i.brand,
+            i.specification,
+            i.unit,
+            i.unit_price,
+            i.quantity,
+            i.safe_quantity,
+            i.min_purchase_quantity,
+            i.quantity * i.unit_price AS total_amount,
+            i.storage_location,
+            i.warehouse,
+            i.supplier,
+            i.manufacturer,
+            i.status,
+            CASE i.status
+                WHEN 0 THEN '停用'
+                WHEN 1 THEN '启用'
+                ELSE '未知'
+            END AS status_desc,
+            i.warn_status,
+            CASE i.warn_status
+                WHEN 0 THEN '正常'
+                WHEN 1 THEN '低库存预警'
+                WHEN 2 THEN '库存不足'
+                ELSE '未知'
+            END AS warn_status_desc,
+            i.qr_code_url,
+            i.remark,
+            i.create_time,
+            i.update_time
+        FROM spare_part_inventory i
+        WHERE i.deleted = 0
+        <if test="query.keyword != null and query.keyword != ''">
+            AND (
+                i.part_name LIKE CONCAT('%', #{query.keyword}, '%')
+                OR i.part_code LIKE CONCAT('%', #{query.keyword}, '%')
+                OR i.part_model LIKE CONCAT('%', #{query.keyword}, '%')
+                OR i.brand LIKE CONCAT('%', #{query.keyword}, '%')
+            )
+        </if>
+        <if test="query.partType != null and query.partType != ''">
+            AND i.part_type = #{query.partType}
+        </if>
+        <if test="query.warehouse != null and query.warehouse != ''">
+            AND i.warehouse = #{query.warehouse}
+        </if>
+        <if test="query.warnStatus != null">
+            AND i.warn_status = #{query.warnStatus}
+        </if>
+        <if test="query.status != null">
+            AND i.status = #{query.status}
+        </if>
+        ORDER BY i.create_time DESC
+    </select>
+
+    <select id="selectInventoryDetailById" resultMap="SparePartInventoryVOMap">
+        SELECT
+            i.id,
+            i.part_code,
+            i.part_name,
+            i.part_type,
+            CASE i.part_type
+                WHEN 'fan' THEN '风扇'
+                WHEN 'capacitor' THEN '电容'
+                WHEN 'board' THEN '板卡'
+                WHEN 'other' THEN '其他'
+                ELSE '未知'
+            END AS part_type_desc,
+            i.part_model,
+            i.brand,
+            i.specification,
+            i.unit,
+            i.unit_price,
+            i.quantity,
+            i.safe_quantity,
+            i.min_purchase_quantity,
+            i.quantity * i.unit_price AS total_amount,
+            i.storage_location,
+            i.warehouse,
+            i.supplier,
+            i.manufacturer,
+            i.status,
+            CASE i.status
+                WHEN 0 THEN '停用'
+                WHEN 1 THEN '启用'
+                ELSE '未知'
+            END AS status_desc,
+            i.warn_status,
+            CASE i.warn_status
+                WHEN 0 THEN '正常'
+                WHEN 1 THEN '低库存预警'
+                WHEN 2 THEN '库存不足'
+                ELSE '未知'
+            END AS warn_status_desc,
+            i.qr_code_url,
+            i.remark,
+            i.create_time,
+            i.update_time
+        FROM spare_part_inventory i
+        WHERE i.id = #{id} AND i.deleted = 0
+    </select>
+
+</mapper>

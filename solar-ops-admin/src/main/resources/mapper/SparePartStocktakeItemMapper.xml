@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.solar.ops.admin.mapper.SparePartStocktakeItemMapper">
+
+    <resultMap id="SparePartStocktakeItemVOMap" type="com.solar.ops.admin.vo.SparePartStocktakeItemVO">
+        <id column="id" property="id"/>
+        <result column="stocktake_id" property="stocktakeId"/>
+        <result column="stocktake_no" property="stocktakeNo"/>
+        <result column="part_id" property="partId"/>
+        <result column="part_code" property="partCode"/>
+        <result column="part_name" property="partName"/>
+        <result column="part_model" property="partModel"/>
+        <result column="part_type" property="partType"/>
+        <result column="part_type_desc" property="partTypeDesc"/>
+        <result column="unit" property="unit"/>
+        <result column="unit_price" property="unitPrice"/>
+        <result column="system_quantity" property="systemQuantity"/>
+        <result column="actual_quantity" property="actualQuantity"/>
+        <result column="diff_quantity" property="diffQuantity"/>
+        <result column="diff_type" property="diffType"/>
+        <result column="diff_type_desc" property="diffTypeDesc"/>
+        <result column="diff_amount" property="diffAmount"/>
+        <result column="storage_location" property="storageLocation"/>
+        <result column="remark" property="remark"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <select id="selectItemPage" resultMap="SparePartStocktakeItemVOMap">
+        SELECT
+            item.id,
+            item.stocktake_id,
+            item.stocktake_no,
+            item.part_id,
+            item.part_code,
+            item.part_name,
+            item.part_model,
+            item.part_type,
+            CASE item.part_type
+                WHEN 'fan' THEN '风扇'
+                WHEN 'capacitor' THEN '电容'
+                WHEN 'board' THEN '板卡'
+                WHEN 'other' THEN '其他'
+                ELSE '未知'
+            END AS part_type_desc,
+            item.unit,
+            item.unit_price,
+            item.system_quantity,
+            item.actual_quantity,
+            item.diff_quantity,
+            item.diff_type,
+            CASE item.diff_type
+                WHEN 0 THEN '无差异'
+                WHEN 1 THEN '盘盈'
+                WHEN 2 THEN '盘亏'
+                ELSE '未知'
+            END AS diff_type_desc,
+            item.diff_amount,
+            item.storage_location,
+            item.remark,
+            item.create_time,
+            item.update_time
+        FROM spare_part_stocktake_item item
+        WHERE item.deleted = 0 AND item.stocktake_id = #{stocktakeId}
+        <if test="diffType != null">
+            AND item.diff_type = #{diffType}
+        </if>
+        ORDER BY item.part_code
+    </select>
+
+    <select id="selectItemsByStocktakeId" resultMap="SparePartStocktakeItemVOMap">
+        SELECT
+            item.id,
+            item.stocktake_id,
+            item.stocktake_no,
+            item.part_id,
+            item.part_code,
+            item.part_name,
+            item.part_model,
+            item.part_type,
+            CASE item.part_type
+                WHEN 'fan' THEN '风扇'
+                WHEN 'capacitor' THEN '电容'
+                WHEN 'board' THEN '板卡'
+                WHEN 'other' THEN '其他'
+                ELSE '未知'
+            END AS part_type_desc,
+            item.unit,
+            item.unit_price,
+            item.system_quantity,
+            item.actual_quantity,
+            item.diff_quantity,
+            item.diff_type,
+            CASE item.diff_type
+                WHEN 0 THEN '无差异'
+                WHEN 1 THEN '盘盈'
+                WHEN 2 THEN '盘亏'
+                ELSE '未知'
+            END AS diff_type_desc,
+            item.diff_amount,
+            item.storage_location,
+            item.remark,
+            item.create_time,
+            item.update_time
+        FROM spare_part_stocktake_item item
+        WHERE item.deleted = 0 AND item.stocktake_id = #{stocktakeId}
+        ORDER BY item.part_code
+    </select>
+
+</mapper>

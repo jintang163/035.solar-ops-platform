@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.solar.ops.admin.mapper.SparePartPurchaseSuggestionMapper">
+
+    <resultMap id="SparePartPurchaseSuggestionVOMap" type="com.solar.ops.admin.vo.SparePartPurchaseSuggestionVO">
+        <id column="id" property="id"/>
+        <result column="suggestion_no" property="suggestionNo"/>
+        <result column="part_id" property="partId"/>
+        <result column="part_code" property="partCode"/>
+        <result column="part_name" property="partName"/>
+        <result column="part_model" property="partModel"/>
+        <result column="part_type" property="partType"/>
+        <result column="part_type_desc" property="partTypeDesc"/>
+        <result column="current_quantity" property="currentQuantity"/>
+        <result column="safe_quantity" property="safeQuantity"/>
+        <result column="suggest_quantity" property="suggestQuantity"/>
+        <result column="min_purchase_quantity" property="minPurchaseQuantity"/>
+        <result column="unit_price" property="unitPrice"/>
+        <result column="estimated_amount" property="estimatedAmount"/>
+        <result column="supplier" property="supplier"/>
+        <result column="urgency" property="urgency"/>
+        <result column="urgency_desc" property="urgencyDesc"/>
+        <result column="status" property="status"/>
+        <result column="status_desc" property="statusDesc"/>
+        <result column="generate_time" property="generateTime"/>
+        <result column="processor_id" property="processorId"/>
+        <result column="processor_name" property="processorName"/>
+        <result column="process_time" property="processTime"/>
+        <result column="remark" property="remark"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <select id="selectSuggestionPage" resultMap="SparePartPurchaseSuggestionVOMap">
+        SELECT
+            s.id,
+            s.suggestion_no,
+            s.part_id,
+            s.part_code,
+            s.part_name,
+            s.part_model,
+            s.part_type,
+            CASE s.part_type
+                WHEN 'fan' THEN '风扇'
+                WHEN 'capacitor' THEN '电容'
+                WHEN 'board' THEN '板卡'
+                WHEN 'other' THEN '其他'
+                ELSE '未知'
+            END AS part_type_desc,
+            s.current_quantity,
+            s.safe_quantity,
+            s.suggest_quantity,
+            s.min_purchase_quantity,
+            s.unit_price,
+            s.estimated_amount,
+            s.supplier,
+            s.urgency,
+            CASE s.urgency
+                WHEN 1 THEN '一般'
+                WHEN 2 THEN '紧急'
+                WHEN 3 THEN '非常紧急'
+                ELSE '未知'
+            END AS urgency_desc,
+            s.status,
+            CASE s.status
+                WHEN 0 THEN '待处理'
+                WHEN 1 THEN '已采购'
+                WHEN 2 THEN '已忽略'
+                ELSE '未知'
+            END AS status_desc,
+            s.generate_time,
+            s.processor_id,
+            s.processor_name,
+            s.process_time,
+            s.remark,
+            s.create_time
+        FROM spare_part_purchase_suggestion s
+        WHERE s.deleted = 0
+        <if test="query.keyword != null and query.keyword != ''">
+            AND (
+                s.part_name LIKE CONCAT('%', #{query.keyword}, '%')
+                OR s.part_code LIKE CONCAT('%', #{query.keyword}, '%')
+                OR s.suggestion_no LIKE CONCAT('%', #{query.keyword}, '%')
+                OR s.part_model LIKE CONCAT('%', #{query.keyword}, '%')
+            )
+        </if>
+        <if test="query.partType != null and query.partType != ''">
+            AND s.part_type = #{query.partType}
+        </if>
+        <if test="query.status != null">
+            AND s.status = #{query.status}
+        </if>
+        <if test="query.urgency != null">
+            AND s.urgency = #{query.urgency}
+        </if>
+        <if test="query.startTime != null">
+            AND s.generate_time &gt;= #{query.startTime}
+        </if>
+        <if test="query.endTime != null">
+            AND s.generate_time &lt;= #{query.endTime}
+        </if>
+        ORDER BY s.urgency DESC, s.create_time DESC
+    </select>
+
+</mapper>
