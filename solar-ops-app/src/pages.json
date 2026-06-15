@@ -74,6 +74,44 @@
       "style": {
         "navigationBarTitleText": "我的"
       }
+    },
+    {
+      "path": "pages/cleaning/index",
+      "style": {
+        "navigationBarTitleText": "清洁管理",
+        "enablePullDownRefresh": true,
+        "backgroundTextStyle": "dark"
+      }
+    },
+    {
+      "path": "pages/cleaning/calendar",
+      "style": {
+        "navigationBarTitleText": "日历视图"
+      }
+    },
+    {
+      "path": "pages/cleaning/plan-list",
+      "style": {
+        "navigationBarTitleText": "清洗计划"
+      }
+    },
+    {
+      "path": "pages/cleaning/plan-detail",
+      "style": {
+        "navigationBarTitleText": "计划详情"
+      }
+    },
+    {
+      "path": "pages/cleaning/plan-edit",
+      "style": {
+        "navigationBarTitleText": "新建计划"
+      }
+    },
+    {
+      "path": "pages/cleaning/reminder",
+      "style": {
+        "navigationBarTitleText": "清洗提醒"
+      }
     }
   ],
   "globalStyle": {

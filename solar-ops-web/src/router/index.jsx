@@ -15,6 +15,9 @@ import PowerPrediction from '../pages/prediction/PowerPrediction'
 import DeviceLifetime from '../pages/prediction/DeviceLifetime'
 import DroneInspectionList from '../pages/drone/DroneInspectionList'
 import DroneDefectList from '../pages/drone/DroneDefectList'
+import CleaningDashboard from '../pages/cleaning/CleaningDashboard'
+import CleaningPlanList from '../pages/cleaning/CleaningPlanList'
+import CleaningReminderList from '../pages/cleaning/CleaningReminderList'
 
 const routes = [
   {
@@ -38,6 +41,9 @@ const routes = [
       { path: 'workorder/list', element: <WorkOrderList /> },
       { path: 'drone/tasks', element: <DroneInspectionList /> },
       { path: 'drone/defects', element: <DroneDefectList /> },
+      { path: 'cleaning/dashboard', element: <CleaningDashboard /> },
+      { path: 'cleaning/plan', element: <CleaningPlanList /> },
+      { path: 'cleaning/reminder', element: <CleaningReminderList /> },
       { path: 'settings/user', element: <UserManagement /> }
     ]
   },

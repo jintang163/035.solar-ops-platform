@@ -1,6 +1,7 @@
 package com.solar.ops.analysis.config;
 
 import com.solar.ops.analysis.job.DailyStatisticsJob;
+import com.solar.ops.analysis.job.DustDetectionJob;
 import com.solar.ops.analysis.job.EfficiencyCalculateJob;
 import com.solar.ops.analysis.job.WarrantyReminderJob;
 import org.quartz.*;
@@ -60,6 +61,24 @@ public class QuartzConfig {
         return TriggerBuilder.newTrigger()
                 .forJob(warrantyReminderJobDetail())
                 .withIdentity("warrantyReminderTrigger")
+                .withSchedule(scheduleBuilder)
+                .build();
+    }
+
+    @Bean
+    public JobDetail dustDetectionJobDetail() {
+        return JobBuilder.newJob(DustDetectionJob.class)
+                .withIdentity("dustDetectionJob")
+                .storeDurably()
+                .build();
+    }
+
+    @Bean
+    public Trigger dustDetectionTrigger() {
+        CronScheduleBuilder scheduleBuilder = CronScheduleBuilder.cronSchedule("0 30 2 * * ?");
+        return TriggerBuilder.newTrigger()
+                .forJob(dustDetectionJobDetail())
+                .withIdentity("dustDetectionTrigger")
                 .withSchedule(scheduleBuilder)
                 .build();
     }

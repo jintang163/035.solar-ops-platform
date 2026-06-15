@@ -16,7 +16,9 @@ import {
   QrcodeOutlined,
   RiseOutlined,
   DroneOutlined,
-  BugOutlined
+  BugOutlined,
+  DropletOutlined,
+  AreaChartOutlined
 } from '@ant-design/icons'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { getUser, clearAuth } from '../utils/auth'
@@ -115,6 +117,26 @@ const menuItems = [
       {
         key: '/drone/defects',
         label: '缺陷管理'
+      }
+    ]
+  },
+  {
+    key: '/cleaning',
+    icon: <DropletOutlined />,
+    label: '清洁管理',
+    children: [
+      {
+        key: '/cleaning/dashboard',
+        icon: <AreaChartOutlined />,
+        label: '清洗仪表盘'
+      },
+      {
+        key: '/cleaning/reminder',
+        label: '清洗提醒'
+      },
+      {
+        key: '/cleaning/plan',
+        label: '清洗计划'
       }
     ]
   },
