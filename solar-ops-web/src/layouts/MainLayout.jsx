@@ -20,7 +20,11 @@ import {
   DropletOutlined,
   AreaChartOutlined,
   DollarOutlined,
-  PieChartOutlined
+  PieChartOutlined,
+  ToolOutlined,
+  InboxOutlined,
+  ShoppingCartOutlined,
+  StockOutlined
 } from '@ant-design/icons'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { getUser, clearAuth } from '../utils/auth'
@@ -93,6 +97,28 @@ const menuItems = [
       {
         key: '/asset/qrcode',
         label: '二维码管理'
+      }
+    ]
+  },
+  {
+    key: '/spare-parts',
+    icon: <ToolOutlined />,
+    label: '备件管理',
+    children: [
+      {
+        key: '/spare-parts/inventory',
+        icon: <InboxOutlined />,
+        label: '库存管理'
+      },
+      {
+        key: '/stocktakes',
+        icon: <StockOutlined />,
+        label: '库存盘点'
+      },
+      {
+        key: '/purchase-suggestions',
+        icon: <ShoppingCartOutlined />,
+        label: '采购建议'
       }
     ]
   },

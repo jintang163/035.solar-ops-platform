@@ -22,6 +22,9 @@ import RevenueDashboard from '../pages/revenue/RevenueDashboard'
 import PriceSchemeList from '../pages/revenue/PriceSchemeList'
 import PriceSchemeCompare from '../pages/revenue/PriceSchemeCompare'
 import RevenueStatistics from '../pages/revenue/RevenueStatistics'
+import SparePartInventoryList from '../pages/spare-parts/SparePartInventoryList'
+import StocktakeList from '../pages/stocktakes/StocktakeList'
+import PurchaseSuggestionList from '../pages/purchase-suggestions/PurchaseSuggestionList'
 
 const routes = [
   {
@@ -52,6 +55,9 @@ const routes = [
       { path: 'revenue/scheme', element: <PriceSchemeList /> },
       { path: 'revenue/compare', element: <PriceSchemeCompare /> },
       { path: 'revenue/statistics', element: <RevenueStatistics /> },
+      { path: 'spare-parts/inventory', element: <SparePartInventoryList /> },
+      { path: 'stocktakes', element: <StocktakeList /> },
+      { path: 'purchase-suggestions', element: <PurchaseSuggestionList /> },
       { path: 'settings/user', element: <UserManagement /> }
     ]
   },

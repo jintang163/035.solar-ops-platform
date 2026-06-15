@@ -112,6 +112,12 @@
       "style": {
         "navigationBarTitleText": "清洗提醒"
       }
+    },
+    {
+      "path": "pages/spare-parts/outbound-scan",
+      "style": {
+        "navigationBarTitleText": "备件出库扫码"
+      }
     }
   ],
   "globalStyle": {

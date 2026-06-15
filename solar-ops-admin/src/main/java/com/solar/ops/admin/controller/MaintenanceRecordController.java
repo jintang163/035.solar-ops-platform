@@ -2,6 +2,7 @@ package com.solar.ops.admin.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.solar.ops.admin.dto.MaintenanceRecordWithSparePartDTO;
+import com.solar.ops.admin.dto.WorkOrderSparePartOutboundDTO;
 import com.solar.ops.admin.entity.MaintenanceRecord;
 import com.solar.ops.admin.service.MaintenanceRecordService;
 import com.solar.ops.common.page.PageQuery;
@@ -13,7 +14,9 @@ import io.swagger.annotations.ApiParam;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/maintenance-records")
@@ -94,5 +97,14 @@ public class MaintenanceRecordController {
     public Result<Void> complete(@ApiParam(value = "维修记录ID") @PathVariable Long id) {
         maintenanceRecordService.completeMaintenance(id);
         return Result.success();
+    }
+
+    @PostMapping("/work-order-outbound")
+    @ApiOperation(value = "工单领用备件并扣减库存")
+    public Result<Map<String, Long>> workOrderOutbound(@RequestBody WorkOrderSparePartOutboundDTO dto) {
+        Long recordId = maintenanceRecordService.workOrderOutboundSpareParts(dto);
+        Map<String, Long> result = new HashMap<>();
+        result.put("maintenanceRecordId", recordId);
+        return Result.success(result);
     }
 }

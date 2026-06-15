@@ -1,46 +1,27 @@
-package com.solar.ops.workorder.dto;
+package com.solar.ops.admin.dto;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
-import javax.validation.constraints.NotNull;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
-@ApiModel(value = "工单处理DTO")
-public class WorkOrderHandleDTO implements Serializable {
+@ApiModel(value = "工单领用备件DTO")
+public class WorkOrderSparePartOutboundDTO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     @ApiModelProperty(value = "工单ID", required = true)
-    @NotNull(message = "工单ID不能为空")
-    private Long orderId;
+    private Long workOrderId;
 
-    @ApiModelProperty(value = "操作人ID")
-    private Long operatorId;
+    @ApiModelProperty(value = "工单编号")
+    private String workOrderNo;
 
-    @ApiModelProperty(value = "操作人姓名")
-    private String operatorName;
-
-    @ApiModelProperty(value = "处理人ID(派单时使用)")
-    private Long handlerId;
-
-    @ApiModelProperty(value = "处理人姓名(派单时使用)")
-    private String handlerName;
-
-    @ApiModelProperty(value = "处理备注")
-    private String remark;
-
-    @ApiModelProperty(value = "维修照片URL列表")
-    private List<String> photoUrls;
-
-    @ApiModelProperty(value = "解决方案")
-    private String solution;
-
-    @ApiModelProperty(value = "资产ID（用于关联维修记录）")
+    @ApiModelProperty(value = "资产ID", required = true)
     private Long assetId;
 
     @ApiModelProperty(value = "维修类型 1-日常维护 2-故障维修 3-定期巡检 4-备件更换")
@@ -55,17 +36,35 @@ public class WorkOrderHandleDTO implements Serializable {
     @ApiModelProperty(value = "维修内容")
     private String maintenanceContent;
 
+    @ApiModelProperty(value = "维修时间")
+    private LocalDateTime maintenanceTime;
+
+    @ApiModelProperty(value = "维修人员")
+    private String maintenancePerson;
+
+    @ApiModelProperty(value = "解决方案")
+    private String solution;
+
+    @ApiModelProperty(value = "维修照片(JSON数组)")
+    private String photos;
+
     @ApiModelProperty(value = "维修费用")
     private BigDecimal cost;
 
-    @ApiModelProperty(value = "领用备件列表")
-    private List<WorkOrderSparePartDTO> spareParts;
+    @ApiModelProperty(value = "操作人姓名")
+    private String operatorName;
+
+    @ApiModelProperty(value = "备注")
+    private String remark;
+
+    @ApiModelProperty(value = "领用备件列表", required = true)
+    private List<SparePartItem> spareParts;
 
     @Data
-    @ApiModel(value = "工单领用备件DTO")
-    public static class WorkOrderSparePartDTO implements Serializable {
+    @ApiModel(value = "领用备件项")
+    public static class SparePartItem implements Serializable {
 
-        @ApiModelProperty(value = "备件ID", required = true)
+        @ApiModelProperty(value = "备件库存ID", required = true)
         private Long partId;
 
         @ApiModelProperty(value = "备件编号")
