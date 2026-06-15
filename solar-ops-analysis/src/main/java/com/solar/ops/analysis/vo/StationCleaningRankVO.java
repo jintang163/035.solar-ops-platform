@@ -25,4 +25,10 @@ public class StationCleaningRankVO {
 
     @ApiModelProperty(value = "提升发电量（kWh）")
     private BigDecimal improvedEnergy;
+
+    @ApiModelProperty(value = "提升率（%）")
+    private BigDecimal improvementRate;
+
+    @ApiModelProperty(value = "平均提升电量（kWh/次）")
+    private BigDecimal avgImprovedEnergy;
 }

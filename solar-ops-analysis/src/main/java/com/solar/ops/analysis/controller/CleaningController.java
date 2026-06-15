@@ -186,6 +186,19 @@ public class CleaningController {
         return Result.success();
     }
 
+    @PostMapping("/plan/calc-improvement/{id}")
+    @ApiOperation("手动重算单个计划的清洗提升发电量")
+    public Result<Boolean> calcImprovementForPlan(
+            @ApiParam(value = "计划ID", required = true) @PathVariable Long id) {
+        return Result.success(cleaningPlanService.calculateImprovementForPlan(id));
+    }
+
+    @PostMapping("/plan/calc-improvement/batch")
+    @ApiOperation("批量重算所有待计算计划的清洗提升发电量")
+    public Result<Integer> calcImprovementBatch() {
+        return Result.success(cleaningPlanService.calculatePendingImprovements());
+    }
+
     // ==================== 统计仪表盘接口 ====================
 
     @GetMapping("/statistics/dashboard")

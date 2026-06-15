@@ -19,14 +19,18 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true)
   const [cleaningStats, setCleaningStats] = useState({
     totalCleaningCount: 0,
+    monthlyCleaningCount: 0,
     totalImprovedEnergy: 0,
+    monthlyImprovedEnergy: 0,
     totalSavedCost: 0,
+    monthlyCleaningCost: 0,
     pendingPlanCount: 0,
-    pendingReminderCount: 0,
+    inProgressPlanCount: 0,
+    unhandledReminderCount: 0,
     averageImprovementRate: 0,
-    cleaningTrend: [],
+    improvementTrend: [],
     dustLevelStats: [],
-    stationRanks: []
+    stationRank: []
   })
 
   useEffect(() => {
@@ -42,20 +46,19 @@ const Dashboard = () => {
       const data = await getCleaningDashboard()
       if (data) {
         setCleaningStats({
-          totalCleaningCount: data.totalCleaningCount || 0,
-          totalImprovedEnergy: data.totalImprovedEnergy || 0,
-          totalSavedCost: data.totalSavedCost || 0,
-          pendingPlanCount: data.pendingPlanCount || 0,
-          pendingReminderCount: data.pendingReminderCount || 0,
-          averageImprovementRate: data.averageImprovementRate || 0,
-          cleaningTrend: data.cleaningTrend || [],
-          dustLevelStats: data.dustLevelStats || [
-            { level: 0, levelName: '无积灰', count: 0, color: '#52c41a' },
-            { level: 1, levelName: '轻度', count: 0, color: '#faad14' },
-            { level: 2, levelName: '中度', count: 0, color: '#fa8c16' },
-            { level: 3, levelName: '重度', count: 0, color: '#f5222d' }
-          ],
-          stationRanks: data.stationRanks || []
+          totalCleaningCount: data.totalCleaningCount ?? 0,
+          monthlyCleaningCount: data.monthlyCleaningCount ?? 0,
+          totalImprovedEnergy: data.totalImprovedEnergy ?? 0,
+          monthlyImprovedEnergy: data.monthlyImprovedEnergy ?? 0,
+          totalSavedCost: data.totalSavedCost ?? 0,
+          monthlyCleaningCost: data.monthlyCleaningCost ?? 0,
+          pendingPlanCount: data.pendingPlanCount ?? 0,
+          inProgressPlanCount: data.inProgressPlanCount ?? 0,
+          unhandledReminderCount: data.unhandledReminderCount ?? 0,
+          averageImprovementRate: data.averageImprovementRate ?? 0,
+          improvementTrend: data.improvementTrend ?? [],
+          dustLevelStats: data.dustLevelStats ?? [],
+          stationRank: data.stationRank ?? []
         })
       }
     } catch (err) {
@@ -250,15 +253,7 @@ const Dashboard = () => {
     ]
   }
 
-  const cleaningTrendData = cleaningStats.cleaningTrend.length > 0 ? cleaningStats.cleaningTrend : [
-    { date: '6-01', improvedEnergy: 120, cleaningCount: 2 },
-    { date: '6-05', improvedEnergy: 180, cleaningCount: 3 },
-    { date: '6-10', improvedEnergy: 250, cleaningCount: 2 },
-    { date: '6-15', improvedEnergy: 320, cleaningCount: 4 },
-    { date: '6-20', improvedEnergy: 280, cleaningCount: 3 },
-    { date: '6-25', improvedEnergy: 380, cleaningCount: 5 },
-    { date: '6-30', improvedEnergy: 420, cleaningCount: 4 }
-  ]
+  const cleaningTrendData = cleaningStats.improvementTrend || []
 
   const cleaningTrendOption = {
     tooltip: {
@@ -375,18 +370,18 @@ const Dashboard = () => {
         <Col xs={24} sm={12} md={6}>
           <StatCard
             title="清洗提升电量"
-            value={cleaningStats.totalImprovedEnergy || 12850}
+            value={cleaningStats.totalImprovedEnergy ?? 0}
             suffix="kWh"
             icon={<DropletOutlined />}
             color="#13c2c2"
             trend="up"
-            trendValue={`${cleaningStats.averageImprovementRate || 10.2}%`}
+            trendValue={`${cleaningStats.averageImprovementRate ?? 0}% 平均提升`}
           />
         </Col>
         <Col xs={24} sm={12} md={6}>
           <StatCard
             title="累计清洗次数"
-            value={cleaningStats.totalCleaningCount || 48}
+            value={cleaningStats.totalCleaningCount ?? 0}
             suffix="次"
             icon={<TrophyOutlined />}
             color="#52c41a"
@@ -395,7 +390,7 @@ const Dashboard = () => {
         <Col xs={24} sm={12} md={6}>
           <StatCard
             title="待处理提醒"
-            value={cleaningStats.pendingReminderCount || 6}
+            value={cleaningStats.unhandledReminderCount ?? 0}
             suffix="条"
             icon={<BellOutlined />}
             color="#fa8c16"
@@ -404,12 +399,12 @@ const Dashboard = () => {
         <Col xs={24} sm={12} md={6}>
           <StatCard
             title="节省费用"
-            value={cleaningStats.totalSavedCost || 8650}
+            value={cleaningStats.totalSavedCost ?? 0}
             suffix="元"
             icon={<DollarOutlined />}
             color="#f5222d"
             trend="up"
-            trendValue="ROI 3.5x"
+            trendValue={`月度 ${cleaningStats.monthlyImprovedEnergy ?? 0} kWh`}
           />
         </Col>
       </Row>
@@ -478,26 +473,24 @@ const Dashboard = () => {
         <Col xs={24} lg={8}>
           <Card title="📊 积灰等级分布" loading={loading} className="dust-dist-card">
             <div className="dust-stats">
-              {(cleaningStats.dustLevelStats.length > 0 ? cleaningStats.dustLevelStats : [
-                { level: 0, levelName: '无积灰', count: 45, color: '#52c41a' },
-                { level: 1, levelName: '轻度', count: 18, color: '#faad14' },
-                { level: 2, levelName: '中度', count: 8, color: '#fa8c16' },
-                { level: 3, levelName: '重度', count: 3, color: '#f5222d' }
-              ]).map(item => (
-                <div key={item.level} className="dust-stat-item">
+              {(cleaningStats.dustLevelStats || []).map(item => (
+                <div key={item.dustLevel} className="dust-stat-item">
                   <div className="dust-stat-head">
                     <span className="dust-dot" style={{ backgroundColor: item.color }} />
-                    <span className="dust-name">{item.levelName}</span>
+                    <span className="dust-name">{item.dustLevelDesc}</span>
                     <span className="dust-count">{item.count} 处</span>
                   </div>
                   <Progress
-                    percent={Math.round((item.count / totalDustCount) * 100)}
+                    percent={Math.round((item.count / Math.max(totalDustCount, 1)) * 100)}
                     showInfo={false}
                     strokeColor={item.color}
                     size="small"
                   />
                 </div>
               ))}
+              {(!cleaningStats.dustLevelStats || cleaningStats.dustLevelStats.length === 0) && (
+                <div className="dust-empty">暂无积灰检测数据</div>
+              )}
             </div>
             <div className="dust-total-note">
               共检测 <strong>{totalDustCount}</strong> 个方阵/逆变器单元
@@ -514,34 +507,29 @@ const Dashboard = () => {
             extra={<a href="#/cleaning/dashboard">查看详细仪表盘 →</a>}
           >
             <List
-              dataSource={cleaningStats.stationRanks.length > 0 ? cleaningStats.stationRanks : [
-                { stationName: '一号光伏电站', totalCleaningCount: 12, improvedEnergy: 3850, improvementRate: 11.2, roi: 3.8 },
-                { stationName: '三号光伏电站', totalCleaningCount: 10, improvedEnergy: 3200, improvementRate: 10.8, roi: 3.5 },
-                { stationName: '二号光伏电站', totalCleaningCount: 8, improvedEnergy: 2680, improvementRate: 9.5, roi: 3.2 },
-                { stationName: '五号光伏电站', totalCleaningCount: 7, improvedEnergy: 1950, improvementRate: 8.7, roi: 2.9 },
-                { stationName: '四号光伏电站', totalCleaningCount: 5, improvedEnergy: 1170, improvementRate: 7.3, roi: 2.4 }
-              ]}
+              dataSource={cleaningStats.stationRank || []}
+              locale={{ emptyText: '暂无清洗数据' }}
               renderItem={(item, index) => (
-                <List.Item key={item.stationName}>
+                <List.Item key={item.stationId}>
                   <div className="cleaning-rank-item">
                     <span className={`cleaning-rank rank-${index + 1}`}>{index + 1}</span>
                     <span className="cleaning-station">{item.stationName}</span>
                     <div className="cleaning-info-group">
                       <span className="cleaning-info-chip">
-                        清洗 {item.totalCleaningCount} 次
+                        清洗 {item.cleaningCount} 次
                       </span>
                       <span className="cleaning-info-chip energy">
                         +{item.improvedEnergy} kWh
                       </span>
                       <Progress
                         className="cleaning-progress"
-                        percent={item.improvementRate}
+                        percent={Number(item.improvementRate) || 0}
                         format={percent => `${percent}%`}
                         strokeColor="#52c41a"
                         size="small"
                       />
-                      <span className={`cleaning-roi roi-${item.roi >= 3 ? 'high' : item.roi >= 2.5 ? 'mid' : 'low'}`}>
-                        ROI {item.roi}x
+                      <span className="cleaning-avg">
+                        均次 {item.avgImprovedEnergy || 0} kWh
                       </span>
                     </div>
                   </div>

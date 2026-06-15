@@ -38,6 +38,9 @@ public class CleaningDashboardVO {
     @ApiModelProperty(value = "本月清洗费用（元）")
     private BigDecimal monthlyCleaningCost;
 
+    @ApiModelProperty(value = "平均提升率（%）")
+    private BigDecimal averageImprovementRate;
+
     @ApiModelProperty(value = "各积灰等级分布统计")
     private List<DustLevelStatVO> dustLevelStats;
 

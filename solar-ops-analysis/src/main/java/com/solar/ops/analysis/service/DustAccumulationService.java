@@ -54,7 +54,8 @@ public class DustAccumulationService extends ServiceImpl<DustAccumulationRecordM
                 .eq(EfficiencyStatistics::getStatisticsType, 1)
                 .between(EfficiencyStatistics::getStatisticsDate,
                         detectDate.minusDays(14), detectDate)
-                .isNotNull(EfficiencyStatistics::getInverterId);
+                .isNotNull(EfficiencyStatistics::getInverterId)
+                .gt(EfficiencyStatistics::getTotalEnergy, BigDecimal.ZERO);
         List<EfficiencyStatistics> allStats = efficiencyAnalysisService.list(effWrapper);
 
         if (CollectionUtils.isEmpty(allStats)) {
@@ -66,15 +67,15 @@ public class DustAccumulationService extends ServiceImpl<DustAccumulationRecordM
 
         List<DustAccumulationRecord> resultList = new ArrayList<>();
 
-        LocalDate referenceDate = detectDate.minusDays(7);
+        LocalDate referenceStart = detectDate.minusDays(7);
+        LocalDate referenceEnd = detectDate.minusDays(1);
 
         for (java.util.Map.Entry<Long, List<EfficiencyStatistics>> entry : inverterGrouped.entrySet()) {
             Long inverterId = entry.getKey();
             List<EfficiencyStatistics> inverterStats = entry.getValue();
 
             EfficiencyStatistics detectStat = inverterStats.stream()
-                    .filter(s -> s.getStatisticsDate().equals(detectDate)
-                            || s.getStatisticsDate().equals(detectDate.minusDays(0)))
+                    .filter(s -> s.getStatisticsDate().equals(detectDate))
                     .findFirst()
                     .orElse(null);
 
@@ -83,16 +84,21 @@ public class DustAccumulationService extends ServiceImpl<DustAccumulationRecordM
                 continue;
             }
 
-            EfficiencyStatistics referenceStat = inverterStats.stream()
-                    .filter(s -> s.getStatisticsDate().isBefore(referenceDate.plusDays(1))
-                            && s.getStatisticsDate().isAfter(referenceDate.minusDays(3)))
-                    .max(Comparator.comparing(EfficiencyStatistics::getStatisticsDate))
-                    .orElse(null);
+            BigDecimal detectRatio = DustAccumulationCalculator.getRatioFromStat(detectStat);
+            if (detectRatio.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
 
-            BigDecimal detectRatio = calculateRatioFromEfficiency(detectStat);
-            BigDecimal referenceRatio = referenceStat != null
-                    ? calculateRatioFromEfficiency(referenceStat)
-                    : new BigDecimal("0.85");
+            BigDecimal referenceRatio = DustAccumulationCalculator.calculateAverageRatio(
+                    inverterStats, referenceStart, referenceEnd);
+
+            if (referenceRatio.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+
+            BigDecimal actualEnergy = detectStat.getTotalEnergy();
+            BigDecimal theoreticalEnergy = DustAccumulationCalculator.calculateTheoreticalEnergy(
+                    actualEnergy, detectRatio);
 
             BigDecimal attenuationRate = DustAccumulationCalculator.calculateAttenuationRate(
                     referenceRatio, detectRatio);
@@ -100,15 +106,20 @@ public class DustAccumulationService extends ServiceImpl<DustAccumulationRecordM
             int continuousDays = DustAccumulationCalculator.calculateContinuousDeclineDays(
                     inverterStats, detectDate);
             BigDecimal estimatedLoss = DustAccumulationCalculator.calculateEstimatedLoss(
-                    detectStat.getTotalEnergy(), attenuationRate);
+                    actualEnergy, attenuationRate);
+
+            String arrayNumber = extractArrayNumber(inverterId, inverterStats);
+            String inverterName = detectStat.getStationId() + "号站" + inverterId + "号逆变器";
 
             DustAccumulationRecord record = new DustAccumulationRecord();
             record.setStationId(stationId);
             record.setInverterId(inverterId);
+            record.setInverterName(inverterName);
+            record.setArrayNumber(arrayNumber);
             record.setDetectDate(detectDate);
-            record.setReferenceDate(referenceDate);
-            record.setActualEnergy(detectStat.getTotalEnergy());
-            record.setTheoreticalEnergy(calculateTheoreticalEnergy(detectStat));
+            record.setReferenceDate(referenceEnd);
+            record.setActualEnergy(actualEnergy);
+            record.setTheoreticalEnergy(theoreticalEnergy);
             record.setReferenceRatio(referenceRatio);
             record.setDetectRatio(detectRatio);
             record.setAttenuationRate(attenuationRate);
@@ -116,6 +127,7 @@ public class DustAccumulationService extends ServiceImpl<DustAccumulationRecordM
             record.setDustLevel(dustLevel.getCode());
             record.setContinuousDeclineDays(continuousDays);
             record.setHasReminder(0);
+            record.setRemark("参考期" + referenceStart + "至" + referenceEnd + "平均比值");
 
             resultList.add(record);
         }
@@ -125,6 +137,13 @@ public class DustAccumulationService extends ServiceImpl<DustAccumulationRecordM
         }
 
         return resultList;
+    }
+
+    private String extractArrayNumber(Long inverterId, List<EfficiencyStatistics> stats) {
+        if (stats == null || stats.isEmpty()) {
+            return inverterId + "号方阵";
+        }
+        return inverterId + "号方阵";
     }
 
     public List<DustAccumulationRecord> getRecordsNeedReminder(LocalDate date, int thresholdDays) {
@@ -206,26 +225,5 @@ public class DustAccumulationService extends ServiceImpl<DustAccumulationRecordM
         }
 
         return vo;
-    }
-
-    private BigDecimal calculateRatioFromEfficiency(EfficiencyStatistics stat) {
-        if (stat.getPrValue() != null) {
-            return stat.getPrValue();
-        }
-        if (stat.getSystemEfficiency() != null) {
-            return stat.getSystemEfficiency();
-        }
-        return new BigDecimal("0.80");
-    }
-
-    private BigDecimal calculateTheoreticalEnergy(EfficiencyStatistics stat) {
-        if (stat.getTotalEnergy() == null) {
-            return BigDecimal.ZERO;
-        }
-        BigDecimal ratio = calculateRatioFromEfficiency(stat);
-        if (ratio.compareTo(BigDecimal.ZERO) <= 0) {
-            return stat.getTotalEnergy();
-        }
-        return stat.getTotalEnergy().divide(ratio, 2, BigDecimal.ROUND_HALF_UP);
     }
 }

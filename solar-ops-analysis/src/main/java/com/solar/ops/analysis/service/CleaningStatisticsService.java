@@ -80,6 +80,31 @@ public class CleaningStatisticsService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         vo.setMonthlyCleaningCost(monthCost);
 
+        long calculatedCount = allCompletedPlans.stream()
+                .filter(p -> p.getImprovedEnergy() != null
+                        && p.getImprovedEnergy().compareTo(BigDecimal.ZERO) > 0)
+                .count();
+        if (calculatedCount > 0 && totalImproved.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal avgBefore = allCompletedPlans.stream()
+                    .filter(p -> p.getBeforeCleanEnergy() != null
+                            && p.getBeforeCleanEnergy().compareTo(BigDecimal.ZERO) > 0)
+                    .map(CleaningPlan::getBeforeCleanEnergy)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (avgBefore.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal avgImprove = totalImproved.divide(
+                        new BigDecimal(calculatedCount), 4, RoundingMode.HALF_UP);
+                BigDecimal avgRate = avgImprove.divide(
+                        avgBefore.divide(new BigDecimal(calculatedCount), 4, RoundingMode.HALF_UP),
+                        4, RoundingMode.HALF_UP);
+                vo.setAverageImprovementRate(avgRate.multiply(new BigDecimal("100"))
+                        .setScale(2, RoundingMode.HALF_UP));
+            } else {
+                vo.setAverageImprovementRate(BigDecimal.ZERO);
+            }
+        } else {
+            vo.setAverageImprovementRate(BigDecimal.ZERO);
+        }
+
         vo.setDustLevelStats(getDustLevelStats(stationId));
         vo.setImprovementTrend(getImprovementTrend(stationId, now));
         vo.setStationRank(getStationCleaningRank(stationId));
@@ -183,13 +208,45 @@ public class CleaningStatisticsService {
                     .map(p -> p.getImprovedEnergy() != null ? p.getImprovedEnergy() : BigDecimal.ZERO)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+            BigDecimal avgImproved = count > 0
+                    ? improved.divide(new BigDecimal(count), 2, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO;
+
+            List<CleaningPlan> calculatedPlans = stationPlans.stream()
+                    .filter(p -> p.getImprovedEnergy() != null
+                            && p.getImprovedEnergy().compareTo(BigDecimal.ZERO) > 0
+                            && p.getBeforeCleanEnergy() != null
+                            && p.getBeforeCleanEnergy().compareTo(BigDecimal.ZERO) > 0)
+                    .collect(Collectors.toList());
+            BigDecimal improvementRate = BigDecimal.ZERO;
+            if (!calculatedPlans.isEmpty()) {
+                BigDecimal totalBefore = calculatedPlans.stream()
+                        .map(CleaningPlan::getBeforeCleanEnergy)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal totalImproved = calculatedPlans.stream()
+                        .map(CleaningPlan::getImprovedEnergy)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                if (totalBefore.compareTo(BigDecimal.ZERO) > 0) {
+                    improvementRate = totalImproved.divide(totalBefore, 4, RoundingMode.HALF_UP)
+                            .multiply(new BigDecimal("100"))
+                            .setScale(2, RoundingMode.HALF_UP);
+                }
+            }
+
             String stationName = stationPlans.stream()
                     .map(CleaningPlan::getStationName)
                     .filter(Objects::nonNull)
                     .findFirst()
                     .orElse("电站" + stationId);
 
-            rankList.add(new StationCleaningRankVO(stationId, stationName, count, improved));
+            StationCleaningRankVO vo = new StationCleaningRankVO();
+            vo.setStationId(stationId);
+            vo.setStationName(stationName);
+            vo.setCleaningCount(count);
+            vo.setImprovedEnergy(improved);
+            vo.setAvgImprovedEnergy(avgImproved);
+            vo.setImprovementRate(improvementRate);
+            rankList.add(vo);
         }
 
         rankList.sort(Comparator

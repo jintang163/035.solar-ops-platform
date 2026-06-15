@@ -179,8 +179,6 @@ public class CleaningPlanService extends ServiceImpl<CleaningPlanMapper, Cleanin
             plan.setInspectionRemark(dto.getInspectionRemark());
         }
 
-        calculateCleaningImprovement(plan);
-
         updateById(plan);
     }
 
@@ -233,16 +231,28 @@ public class CleaningPlanService extends ServiceImpl<CleaningPlanMapper, Cleanin
         return result;
     }
 
-    private void calculateCleaningImprovement(CleaningPlan plan) {
+    public boolean calculateImprovementForPlan(Long planId) {
+        CleaningPlan plan = getById(planId);
+        if (plan == null) {
+            return false;
+        }
+        if (!CleaningStatusEnum.COMPLETED.getCode().equals(plan.getStatus())) {
+            return false;
+        }
         if (plan.getPlanDate() == null || plan.getInverterId() == null) {
-            return;
+            return false;
         }
 
         LocalDate cleanDate = plan.getPlanDate();
+        LocalDate today = LocalDate.now();
+        if (cleanDate.plusDays(7).isAfter(today)) {
+            return false;
+        }
+
         LocalDate beforeStart = cleanDate.minusDays(14);
         LocalDate beforeEnd = cleanDate.minusDays(1);
         LocalDate afterStart = cleanDate.plusDays(1);
-        LocalDate afterEnd = cleanDate.plusDays(14);
+        LocalDate afterEnd = cleanDate.plusDays(14).isAfter(today) ? today.minusDays(1) : cleanDate.plusDays(14);
 
         LambdaQueryWrapper<EfficiencyStatistics> effWrapper = new LambdaQueryWrapper<>();
         effWrapper.eq(EfficiencyStatistics::getInverterId, plan.getInverterId())
@@ -255,6 +265,10 @@ public class CleaningPlanService extends ServiceImpl<CleaningPlanMapper, Cleanin
         BigDecimal afterAvg = DustAccumulationCalculator.calculateAverageEnergy(
                 statsList, afterStart, afterEnd);
 
+        if (beforeAvg.compareTo(BigDecimal.ZERO) <= 0 || afterAvg.compareTo(BigDecimal.ZERO) <= 0) {
+            return false;
+        }
+
         plan.setBeforeCleanEnergy(beforeAvg);
         plan.setAfterCleanEnergy(afterAvg);
 
@@ -266,6 +280,36 @@ public class CleaningPlanService extends ServiceImpl<CleaningPlanMapper, Cleanin
             plan.setImprovedEnergy(BigDecimal.ZERO);
             plan.setImprovementRate(BigDecimal.ZERO);
         }
+
+        updateById(plan);
+        return true;
+    }
+
+    public int calculatePendingImprovements() {
+        LocalDate today = LocalDate.now();
+        LocalDate sevenDaysAgo = today.minusDays(7);
+
+        LambdaQueryWrapper<CleaningPlan> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(CleaningPlan::getStatus, CleaningStatusEnum.COMPLETED.getCode())
+                .le(CleaningPlan::getPlanDate, sevenDaysAgo)
+                .isNull(CleaningPlan::getImprovedEnergy);
+
+        List<CleaningPlan> pendingPlans = list(wrapper);
+        if (CollectionUtils.isEmpty(pendingPlans)) {
+            return 0;
+        }
+
+        int successCount = 0;
+        for (CleaningPlan plan : pendingPlans) {
+            try {
+                if (calculateImprovementForPlan(plan.getId())) {
+                    successCount++;
+                }
+            } catch (Exception e) {
+                continue;
+            }
+        }
+        return successCount;
     }
 
     private LambdaQueryWrapper<CleaningPlan> buildPlanQueryWrapper(CleaningPlanQueryDTO queryDTO) {

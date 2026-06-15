@@ -24,6 +24,61 @@ public class DustAccumulationCalculator {
         return actualEnergy.divide(theoreticalEnergy, 6, RoundingMode.HALF_UP);
     }
 
+    public static BigDecimal calculateTheoreticalEnergy(BigDecimal actualEnergy, BigDecimal prValue) {
+        if (actualEnergy == null || prValue == null
+                || prValue.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return actualEnergy.divide(prValue, 4, RoundingMode.HALF_UP);
+    }
+
+    public static BigDecimal calculateAverageRatio(List<EfficiencyStatistics> statisticsList,
+                                                   LocalDate startDate, LocalDate endDate) {
+        if (statisticsList == null || statisticsList.isEmpty()
+                || startDate == null || endDate == null) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal totalRatio = BigDecimal.ZERO;
+        int validCount = 0;
+
+        for (EfficiencyStatistics stat : statisticsList) {
+            if (stat.getStatisticsDate() == null) {
+                continue;
+            }
+            if (stat.getStatisticsDate().isBefore(startDate)
+                    || stat.getStatisticsDate().isAfter(endDate)) {
+                continue;
+            }
+            BigDecimal ratio = getRatioFromStat(stat);
+            if (ratio.compareTo(BigDecimal.ZERO) > 0) {
+                totalRatio = totalRatio.add(ratio);
+                validCount++;
+            }
+        }
+
+        if (validCount == 0) {
+            return BigDecimal.ZERO;
+        }
+
+        return totalRatio.divide(new BigDecimal(validCount), 6, RoundingMode.HALF_UP);
+    }
+
+    public static BigDecimal getRatioFromStat(EfficiencyStatistics stat) {
+        if (stat == null) {
+            return BigDecimal.ZERO;
+        }
+        if (stat.getPrValue() != null
+                && stat.getPrValue().compareTo(BigDecimal.ZERO) > 0) {
+            return stat.getPrValue();
+        }
+        if (stat.getSystemEfficiency() != null
+                && stat.getSystemEfficiency().compareTo(BigDecimal.ZERO) > 0) {
+            return stat.getSystemEfficiency();
+        }
+        return BigDecimal.ZERO;
+    }
+
     public static BigDecimal calculateAttenuationRate(BigDecimal referenceRatio, BigDecimal detectRatio) {
         if (referenceRatio == null || detectRatio == null
                 || referenceRatio.compareTo(BigDecimal.ZERO) <= 0) {
@@ -73,19 +128,20 @@ public class DustAccumulationCalculator {
             if (!stat.getStatisticsDate().isBefore(currentDate.minusDays(14))
                     && stat.getStatisticsDate().isBefore(currentDate.plusDays(1))) {
 
-                if (stat.getPrValue() == null) {
+                BigDecimal currentRatio = getRatioFromStat(stat);
+                if (currentRatio.compareTo(BigDecimal.ZERO) <= 0) {
                     continue;
                 }
 
                 if (previousRatio == null) {
-                    previousRatio = stat.getPrValue();
+                    previousRatio = currentRatio;
                     currentDate = stat.getStatisticsDate();
                     continue;
                 }
 
-                if (stat.getPrValue().compareTo(previousRatio) <= 0) {
+                if (currentRatio.compareTo(previousRatio) <= 0) {
                     continuousDays++;
-                    previousRatio = stat.getPrValue();
+                    previousRatio = currentRatio;
                     currentDate = stat.getStatisticsDate();
                 } else {
                     break;
