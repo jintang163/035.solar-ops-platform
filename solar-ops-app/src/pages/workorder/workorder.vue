@@ -9,6 +9,14 @@
         </view>
         <text class="action-arrow">›</text>
       </view>
+      <view class="action-card knowledge" @click="goKnowledge">
+        <view class="action-icon">📚</view>
+        <view class="action-info">
+          <text class="action-title">运维知识库</text>
+          <text class="action-desc">故障案例·智能推荐</text>
+        </view>
+        <text class="action-arrow">›</text>
+      </view>
     </view>
 
     <view class="tabs">
@@ -239,6 +247,12 @@ function goDispatch() {
   })
 }
 
+function goKnowledge() {
+  uni.navigateTo({
+    url: '/pages/knowledge/knowledge'
+  })
+}
+
 onReachBottom(() => {
   loadMore()
 })
@@ -273,9 +287,14 @@ onMounted(() => {
   background-color: #fff;
   border-radius: 16rpx;
   box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+  margin-bottom: 16rpx;
 
   &.dispatch {
     background: linear-gradient(135deg, #e6f7ff, #f6ffed);
+  }
+
+  &.knowledge {
+    background: linear-gradient(135deg, #fff7e6, #f9f0ff);
   }
 }
 

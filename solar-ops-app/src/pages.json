@@ -157,6 +157,20 @@
       "style": {
         "navigationBarTitleText": "离线地图管理"
       }
+    },
+    {
+      "path": "pages/knowledge/knowledge",
+      "style": {
+        "navigationBarTitleText": "运维知识库",
+        "enablePullDownRefresh": true,
+        "backgroundTextStyle": "dark"
+      }
+    },
+    {
+      "path": "pages/knowledge/knowledge-detail",
+      "style": {
+        "navigationBarTitleText": "知识详情"
+      }
     }
   ],
   "globalStyle": {

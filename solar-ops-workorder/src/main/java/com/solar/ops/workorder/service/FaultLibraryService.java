@@ -5,9 +5,9 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.solar.ops.common.page.PageResult;
+import com.solar.ops.workorder.document.KnowledgeDocument;
 import com.solar.ops.workorder.dto.KnowledgeQueryDTO;
 import com.solar.ops.workorder.dto.KnowledgeRecommendDTO;
-import com.solar.ops.workorder.engine.KnowledgeRecommendEngine;
 import com.solar.ops.workorder.entity.FaultLibrary;
 import com.solar.ops.workorder.entity.KnowledgeUsageLog;
 import com.solar.ops.workorder.mapper.FaultLibraryMapper;
@@ -15,6 +15,7 @@ import com.solar.ops.workorder.mapper.KnowledgeUsageLogMapper;
 import com.solar.ops.workorder.vo.KnowledgeRecommendVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -27,13 +28,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class FaultLibraryService extends ServiceImpl<FaultLibraryMapper, FaultLibrary> {
 
-    private final KnowledgeRecommendEngine recommendEngine;
+    private final KnowledgeIndexService knowledgeIndexService;
+    private final KnowledgeSearchService knowledgeSearchService;
     private final KnowledgeUsageLogMapper usageLogMapper;
 
     private final Map<String, FaultLibrary> faultCache = new ConcurrentHashMap<>();
@@ -72,6 +75,39 @@ public class FaultLibraryService extends ServiceImpl<FaultLibraryMapper, FaultLi
     }
 
     public PageResult<FaultLibrary> page(KnowledgeQueryDTO dto) {
+        if (dto.getPageNum() == null) dto.setPageNum(1);
+        if (dto.getPageSize() == null) dto.setPageSize(10);
+
+        if (knowledgeIndexService.isEsAvailable()) {
+            try {
+                org.springframework.data.domain.Page<KnowledgeDocument> esPage = knowledgeSearchService.searchKnowledge(dto);
+                if (esPage != null && esPage.hasContent()) {
+                    List<Long> ids = esPage.getContent().stream()
+                            .map(KnowledgeDocument::getId)
+                            .collect(Collectors.toList());
+                    LambdaQueryWrapper<FaultLibrary> wrapper = new LambdaQueryWrapper<>();
+                    wrapper.in(FaultLibrary::getId, ids);
+                    List<FaultLibrary> dbList = this.list(wrapper);
+                    Map<Long, FaultLibrary> dbMap = dbList.stream()
+                            .collect(Collectors.toMap(FaultLibrary::getId, f -> f, (a, b) -> a));
+                    List<FaultLibrary> orderedList = ids.stream()
+                            .map(dbMap::get)
+                            .filter(java.util.Objects::nonNull)
+                            .collect(Collectors.toList());
+                    return PageResult.build(esPage.getTotalElements(), orderedList, dto.getPageNum(), dto.getPageSize());
+                }
+                if (esPage != null) {
+                    return PageResult.build(esPage.getTotalElements(), java.util.Collections.emptyList(), dto.getPageNum(), dto.getPageSize());
+                }
+            } catch (Exception e) {
+                log.warn("ES搜索失败，降级为数据库查询: {}", e.getMessage());
+            }
+        }
+
+        return pageFromDb(dto);
+    }
+
+    private PageResult<FaultLibrary> pageFromDb(KnowledgeQueryDTO dto) {
         LambdaQueryWrapper<FaultLibrary> wrapper = new LambdaQueryWrapper<>();
         if (dto != null) {
             if (StringUtils.hasText(dto.getKeyword())) {
@@ -131,6 +167,8 @@ public class FaultLibraryService extends ServiceImpl<FaultLibraryMapper, FaultLi
         if (saved) {
             faultCache.put(faultLibrary.getFaultCode(), faultLibrary);
             allKnowledgeCache.add(faultLibrary);
+            knowledgeIndexService.syncById(faultLibrary.getId());
+            log.info("知识库新增成功，ID={} 已同步到ES", faultLibrary.getId());
         }
         return saved;
     }
@@ -144,6 +182,8 @@ public class FaultLibraryService extends ServiceImpl<FaultLibraryMapper, FaultLi
                 faultCache.put(updatedFault.getFaultCode(), updatedFault);
                 allKnowledgeCache.removeIf(f -> f.getId().equals(updatedFault.getId()));
                 allKnowledgeCache.add(updatedFault);
+                knowledgeIndexService.syncById(updatedFault.getId());
+                log.info("知识库更新成功，ID={} 已同步到ES", faultLibrary.getId());
             }
         }
         return updated;
@@ -156,6 +196,8 @@ public class FaultLibraryService extends ServiceImpl<FaultLibraryMapper, FaultLi
         if (deleted && fault != null) {
             faultCache.remove(fault.getFaultCode());
             allKnowledgeCache.removeIf(f -> f.getId().equals(id));
+            knowledgeIndexService.deleteById(id);
+            log.info("知识库删除成功，ID={} 已从ES移除", id);
         }
         return deleted;
     }
@@ -172,6 +214,7 @@ public class FaultLibraryService extends ServiceImpl<FaultLibraryMapper, FaultLi
             this.updateById(knowledge);
             allKnowledgeCache.removeIf(f -> f.getId().equals(id));
             allKnowledgeCache.add(knowledge);
+            knowledgeIndexService.syncById(id);
         }
     }
 
@@ -183,6 +226,7 @@ public class FaultLibraryService extends ServiceImpl<FaultLibraryMapper, FaultLi
             this.updateById(knowledge);
             allKnowledgeCache.removeIf(f -> f.getId().equals(id));
             allKnowledgeCache.add(knowledge);
+            knowledgeIndexService.syncById(id);
         }
     }
 
@@ -198,11 +242,28 @@ public class FaultLibraryService extends ServiceImpl<FaultLibraryMapper, FaultLi
             this.updateById(knowledge);
             allKnowledgeCache.removeIf(f -> f.getId().equals(id));
             allKnowledgeCache.add(knowledge);
+            knowledgeIndexService.syncById(id);
         }
     }
 
     public List<KnowledgeRecommendVO> recommend(KnowledgeRecommendDTO dto) {
-        List<KnowledgeRecommendVO> results = recommendEngine.recommend(allKnowledgeCache, dto);
+        List<KnowledgeRecommendVO> results = null;
+
+        if (knowledgeIndexService.isEsAvailable()) {
+            try {
+                results = knowledgeSearchService.recommend(dto);
+                if (!CollectionUtils.isEmpty(results)) {
+                    log.info("ES智能推荐返回{}条结果", results.size());
+                }
+            } catch (Exception e) {
+                log.warn("ES推荐失败，错误: {}", e.getMessage());
+            }
+        }
+
+        if (CollectionUtils.isEmpty(results)) {
+            log.warn("ES不可用或无结果，不降级（ES为推荐主引擎）");
+            return java.util.Collections.emptyList();
+        }
 
         if (!CollectionUtils.isEmpty(results) && dto.getWorkOrderId() != null) {
             for (KnowledgeRecommendVO vo : results) {
@@ -210,7 +271,6 @@ public class FaultLibraryService extends ServiceImpl<FaultLibraryMapper, FaultLi
                     KnowledgeUsageLog usageLog = new KnowledgeUsageLog();
                     usageLog.setKnowledgeId(vo.getId());
                     usageLog.setWorkOrderId(dto.getWorkOrderId());
-                    usageLog.setUserId(dto.getStationId() != null ? dto.getStationId() : null);
                     usageLog.setUsageType(1);
                     usageLog.setSourceType(1);
                     usageLog.setConfidence(vo.getConfidence() != null ? vo.getConfidence() : BigDecimal.ZERO);
@@ -248,5 +308,9 @@ public class FaultLibraryService extends ServiceImpl<FaultLibraryMapper, FaultLi
         } catch (Exception e) {
             log.warn("记录知识库使用日志失败", e);
         }
+    }
+
+    public boolean isEsAvailable() {
+        return knowledgeIndexService.isEsAvailable();
     }
 }

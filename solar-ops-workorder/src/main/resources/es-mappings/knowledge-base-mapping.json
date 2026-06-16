@@ -1,0 +1,86 @@
+{
+  "properties": {
+    "id": {
+      "type": "long"
+    },
+    "faultCode": {
+      "type": "keyword"
+    },
+    "faultName": {
+      "type": "text",
+      "analyzer": "ik_max_word",
+      "search_analyzer": "ik_smart",
+      "fields": {
+        "keyword": {
+          "type": "keyword",
+          "ignore_above": 256
+        }
+      }
+    },
+    "faultLevel": {
+      "type": "integer"
+    },
+    "faultType": {
+      "type": "keyword"
+    },
+    "faultDesc": {
+      "type": "text",
+      "analyzer": "ik_max_word",
+      "search_analyzer": "ik_smart"
+    },
+    "solution": {
+      "type": "text",
+      "analyzer": "ik_max_word",
+      "search_analyzer": "ik_smart"
+    },
+    "solutionRichText": {
+      "type": "text",
+      "analyzer": "ik_max_word",
+      "search_analyzer": "ik_smart"
+    },
+    "videoUrl": {
+      "type": "keyword",
+      "index": false
+    },
+    "tagList": {
+      "type": "keyword"
+    },
+    "tags": {
+      "type": "text",
+      "analyzer": "ik_max_word",
+      "search_analyzer": "ik_smart"
+    },
+    "likeCount": {
+      "type": "integer"
+    },
+    "dislikeCount": {
+      "type": "integer"
+    },
+    "viewCount": {
+      "type": "integer"
+    },
+    "useCount": {
+      "type": "integer"
+    },
+    "qualityScore": {
+      "type": "double"
+    },
+    "creatorId": {
+      "type": "long"
+    },
+    "creatorName": {
+      "type": "keyword"
+    },
+    "status": {
+      "type": "integer"
+    },
+    "createTime": {
+      "type": "date",
+      "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
+    },
+    "updateTime": {
+      "type": "date",
+      "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
+    }
+  }
+}

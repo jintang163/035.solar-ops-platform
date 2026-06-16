@@ -16,7 +16,12 @@ import {
   Statistic,
   InputNumber,
   Select,
-  Tooltip
+  Tooltip,
+  Progress,
+  Spin,
+  Empty,
+  List,
+  Rate
 } from 'antd'
 import {
   PlusOutlined,
@@ -40,6 +45,7 @@ import {
   closeWorkOrder,
   getWorkOrderStatistics
 } from '../../api/workorder'
+import { recommendKnowledge, submitKnowledgeFeedback, getUserFeedback, recordKnowledgeUsage } from '../../api/knowledge'
 import { getUser } from '../../utils/auth'
 import KnowledgeRecommendModal from '../../components/KnowledgeRecommendModal'
 
@@ -88,6 +94,10 @@ const WorkOrderList = () => {
     stationId: null,
     inverterId: null
   })
+  const [autoRecommendResults, setAutoRecommendResults] = useState([])
+  const [autoRecommendLoading, setAutoRecommendLoading] = useState(false)
+  const [recommendDebounceTimer, setRecommendDebounceTimer] = useState(null)
+  const [userAutoFeedbacks, setUserAutoFeedbacks] = useState({})
 
   const fetchStatistics = useCallback(async () => {
     try {
@@ -202,7 +212,152 @@ const WorkOrderList = () => {
       stationId: null,
       inverterId: null
     })
+    setAutoRecommendResults([])
+    setAutoRecommendLoading(false)
+    setUserAutoFeedbacks({})
+    if (recommendDebounceTimer) {
+      clearTimeout(recommendDebounceTimer)
+    }
     setAddVisible(true)
+  }
+
+  const triggerAutoRecommend = useCallback(async (values) => {
+    const { faultCode, faultName, description, faultLevel, stationId, inverterId } = values || {}
+    if (!faultCode && !faultName && !description) {
+      setAutoRecommendResults([])
+      return
+    }
+    setAutoRecommendLoading(true)
+    try {
+      const res = await recommendKnowledge({
+        faultCode: faultCode || '',
+        faultName: faultName || '',
+        description: description || '',
+        faultLevel: faultLevel || null,
+        stationId: stationId || null,
+        inverterId: inverterId || null,
+        topN: 3,
+        minConfidence: 0.25
+      })
+      const list = res.data || []
+      setAutoRecommendResults(list)
+
+      const currentUser = getUser() || {}
+      if (currentUser.id && list.length > 0) {
+        const fbMap = {}
+        for (const item of list) {
+          try {
+            const fbRes = await getUserFeedback(item.id, currentUser.id)
+            if (fbRes.data) {
+              fbMap[item.id] = fbRes.data
+            }
+          } catch (e) {}
+        }
+        setUserAutoFeedbacks(fbMap)
+      }
+    } catch (e) {
+      console.warn('自动推荐失败', e)
+      setAutoRecommendResults([])
+    } finally {
+      setAutoRecommendLoading(false)
+    }
+  }, [recommendDebounceTimer])
+
+  const handleFormValuesChange = useCallback((changedValues, allValues) => {
+    const keys = Object.keys(changedValues)
+    if (keys.some(k => ['faultCode', 'faultName', 'description', 'faultLevel', 'stationId', 'inverterId'].includes(k))) {
+      if (recommendDebounceTimer) {
+        clearTimeout(recommendDebounceTimer)
+      }
+      const timer = setTimeout(() => {
+        triggerAutoRecommend(allValues)
+      }, 600)
+      setRecommendDebounceTimer(timer)
+    }
+  }, [recommendDebounceTimer, triggerAutoRecommend])
+
+  const handleApplyQuickRecommend = (item) => {
+    handleSelectSolution(item)
+    const user = getUser() || {}
+    if (user?.id) {
+      recordKnowledgeUsage({
+        knowledgeId: item.id,
+        userId: user.id,
+        userName: user.name || user.username,
+        sourceType: 1
+      }).catch(() => {})
+    }
+  }
+
+  const handleQuickFeedback = async (item, feedbackType) => {
+    const currentUser = getUser() || {}
+    if (!currentUser.id) {
+      message.warning('请先登录')
+      return
+    }
+    try {
+      await submitKnowledgeFeedback({
+        knowledgeId: item.id,
+        userId: currentUser.id,
+        userName: currentUser.name || currentUser.username,
+        feedbackType
+      })
+      message.success('反馈已提交')
+      setAutoRecommendResults(prev => prev.map(r => {
+        if (r.id === item.id) {
+          const newR = { ...r }
+          const oldFb = userAutoFeedbacks[item.id]
+          if (oldFb && oldFb.feedbackType !== feedbackType) {
+            if (oldFb.feedbackType === 1) newR.likeCount = Math.max(0, (newR.likeCount || 0) - 1)
+            else if (oldFb.feedbackType === 2) newR.dislikeCount = Math.max(0, (newR.dislikeCount || 0) - 1)
+          }
+          if (feedbackType === 1 && (!oldFb || oldFb.feedbackType !== 1)) {
+            newR.likeCount = (newR.likeCount || 0) + 1
+          }
+          if (feedbackType === 2 && (!oldFb || oldFb.feedbackType !== 2)) {
+            newR.dislikeCount = (newR.dislikeCount || 0) + 1
+          }
+          return newR
+        }
+        return r
+      }))
+      setUserAutoFeedbacks(prev => ({ ...prev, [item.id]: { ...prev[item.id], feedbackType } }))
+    } catch (e) {
+      message.error(e.message || '反馈失败')
+    }
+  }
+
+  const renderConfidenceBadge = (item) => {
+    const info = {
+      high: { color: '#52c41a', bg: '#f6ffed', text: '高置信度' },
+      medium: { color: '#faad14', bg: '#fffbe6', text: '中置信度' },
+      low: { color: '#ff7a45', bg: '#fff2e8', text: '低置信度' }
+    }[item.confidenceLevel] || { color: '#999', bg: '#f5f5f5', text: '匹配中' }
+    const percent = Math.round(Number(item.confidence || 0) * 100)
+    return (
+      <span style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        background: info.bg,
+        color: info.color,
+        border: `1px solid ${info.color}40`,
+        borderRadius: 10,
+        padding: '2px 8px',
+        fontSize: 12,
+        fontWeight: 500
+      }}>
+        {info.text}
+        <Progress
+          type="circle"
+          size={20}
+          percent={percent}
+          strokeColor={info.color}
+          showInfo={false}
+        />
+        <span>{percent}%</span>
+      </span>
+    )
   }
 
   const handleTriggerRecommend = async () => {
@@ -581,9 +736,13 @@ const WorkOrderList = () => {
         confirmLoading={addLoading}
         okText="提交"
         cancelText="取消"
-        width={560}
+        width={640}
       >
-        <Form form={addForm} layout="vertical">
+        <Form
+          form={addForm}
+          layout="vertical"
+          onValuesChange={handleFormValuesChange}
+        >
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
@@ -631,19 +790,151 @@ const WorkOrderList = () => {
           </Form.Item>
           <Form.Item
             label="智能推荐解决方案"
-            tooltip="基于TF-IDF算法匹配相似历史故障案例"
+            tooltip="基于Elasticsearch + TF-IDF算法，输入故障码和描述后自动匹配相似历史案例"
           >
-            <Tooltip title="根据故障码和描述智能匹配相似案例">
-              <Button
-                type="primary"
-                ghost
-                icon={<BulbOutlined />}
-                onClick={handleTriggerRecommend}
-                block
-              >
-                🔍 智能推荐相似案例及解决方案
-              </Button>
-            </Tooltip>
+            <div>
+              <Tooltip title="根据故障码和描述智能匹配相似案例">
+                <Button
+                  type="primary"
+                  ghost
+                  icon={<BulbOutlined />}
+                  onClick={handleTriggerRecommend}
+                  block
+                >
+                  🔍 查看更多推荐方案
+                </Button>
+              </Tooltip>
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              {autoRecommendLoading && (
+                <div style={{ textAlign: 'center', padding: 16, color: '#999' }}>
+                  <Spin size="small" />
+                  <span style={{ marginLeft: 8 }}>AI正在智能匹配相似故障案例...</span>
+                </div>
+              )}
+
+              {!autoRecommendLoading && autoRecommendResults.length > 0 && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+                    <Tag color="purple" style={{ margin: 0 }}>
+                      <BulbOutlined /> 智能推荐 {autoRecommendResults.length} 个相似方案
+                    </Tag>
+                    <span style={{ fontSize: 12, color: '#999', marginLeft: 8 }}>
+                      基于ES + TF-IDF算法匹配
+                    </span>
+                  </div>
+                  <List
+                    size="small"
+                    dataSource={autoRecommendResults}
+                    locale={{ emptyText: '' }}
+                    renderItem={(item, idx) => {
+                      const feedback = userAutoFeedbacks[item.id]
+                      const isLiked = feedback?.feedbackType === 1
+                      const isDisliked = feedback?.feedbackType === 2
+                      return (
+                        <List.Item
+                          key={item.id}
+                          style={{
+                            padding: '10px 12px',
+                            marginBottom: 8,
+                            border: '1px solid #e6f4ff',
+                            background: '#fafcff',
+                            borderRadius: 6
+                          }}
+                        >
+                          <div style={{ width: '100%' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                              <div>
+                                <Space size={6} wrap>
+                                  <Tag color="blue" style={{ fontFamily: 'monospace', fontSize: 12, margin: 0 }}>
+                                    {item.faultCode}
+                                  </Tag>
+                                  <Tag color={(FAULT_LEVEL_MAP[item.faultLevel] || {}).color} style={{ margin: 0 }}>
+                                    {(FAULT_LEVEL_MAP[item.faultLevel] || {}).text}
+                                  </Tag>
+                                  <span style={{ fontWeight: 500 }}>{item.faultName}</span>
+                                </Space>
+                              </div>
+                              {renderConfidenceBadge(item)}
+                            </div>
+                            <div style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>
+                              <span style={{ color: '#8c8c8c' }}>匹配原因：</span>{item.matchReason}
+                            </div>
+                            <div style={{ fontSize: 12, color: '#595959', lineHeight: 1.6, marginBottom: 8 }}>
+                              {item.solution ? item.solution.slice(0, 80) + '...' : '查看详情了解解决方案'}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <Space size={8}>
+                                <Button
+                                  size="small"
+                                  type={isLiked ? 'primary' : 'text'}
+                                  icon={isLiked ? <CheckCircleOutlined /> : <CheckCircleOutlined />}
+                                  onClick={() => handleQuickFeedback(item, 1)}
+                                  style={{ padding: '0 6px', color: isLiked ? '#52c41a' : '#8c8c8c' }}
+                                >
+                                  有用 {item.likeCount || 0}
+                                </Button>
+                                <Button
+                                  size="small"
+                                  type={isDisliked ? 'primary' : 'text'}
+                                  danger={isDisliked}
+                                  onClick={() => handleQuickFeedback(item, 2)}
+                                  style={{ padding: '0 6px', color: isDisliked ? '#ff4d4f' : '#8c8c8c' }}
+                                >
+                                  无用 {item.dislikeCount || 0}
+                                </Button>
+                                <span style={{ fontSize: 12, color: '#bfbfbf' }}>
+                                  📋 {item.useCount || 0}人使用
+                                </span>
+                              </Space>
+                              <Space>
+                                <Button size="small" onClick={() => {
+                                  setRecommendParams({
+                                    faultCode: item.faultCode || '',
+                                    faultName: item.faultName || '',
+                                    description: '',
+                                    faultLevel: item.faultLevel || null,
+                                    stationId: null,
+                                    inverterId: null
+                                  })
+                                  setRecommendVisible(true)
+                                }}>
+                                  详情
+                                </Button>
+                                <Button
+                                  size="small"
+                                  type="primary"
+                                  onClick={() => handleApplyQuickRecommend(item)}
+                                >
+                                  应用方案
+                                </Button>
+                              </Space>
+                            </div>
+                          </div>
+                        </List.Item>
+                      )
+                    }}
+                  />
+                </div>
+              )}
+
+              {!autoRecommendLoading && autoRecommendResults.length === 0 && (
+                addForm.getFieldValue('faultCode') ? (
+                  <div style={{ textAlign: 'center', padding: '16px 8px', color: '#999', fontSize: 12 }}>
+                    <Empty
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                      description="暂未匹配到相似案例"
+                      style={{ margin: 0 }}
+                    />
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '16px 8px', color: '#999', fontSize: 12 }}>
+                    💡 输入故障代码或问题描述后，将自动推荐相似故障解决方案
+                  </div>
+                )
+              )}
+            </div>
           </Form.Item>
           <Form.Item
             name="description"

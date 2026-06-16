@@ -53,6 +53,12 @@
           <view class="menu-title">无人机巡检</view>
           <view class="menu-arrow">›</view>
         </view>
+        <view class="menu-item" @click="goToPage('knowledge')">
+          <view class="menu-icon">📚</view>
+          <view class="menu-title">运维知识库</view>
+          <view class="menu-tag">智能推荐</view>
+          <view class="menu-arrow">›</view>
+        </view>
       </view>
       
       <view class="menu-group">
@@ -147,7 +153,8 @@ function goToSetting() {
 function goToPage(page) {
   const pageMap = {
     workorder: '/pages/workorder/workorder',
-    drone: '/pages/drone/drone'
+    drone: '/pages/drone/drone',
+    knowledge: '/pages/knowledge/knowledge'
   }
   if (pageMap[page]) {
     if (page === 'workorder') {
@@ -321,6 +328,15 @@ onMounted(() => {
   flex: 1;
   font-size: 30rpx;
   color: #333;
+}
+
+.menu-tag {
+  font-size: 20rpx;
+  color: #722ed1;
+  background: #f9f0ff;
+  padding: 4rpx 14rpx;
+  border-radius: 20rpx;
+  margin-right: 12rpx;
 }
 
 .menu-badge {
