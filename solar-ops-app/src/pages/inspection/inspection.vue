@@ -22,6 +22,15 @@
         </view>
         <text class="download-arrow">›</text>
       </view>
+
+      <view class="download-card map-card" @click="handleOfflineMap">
+        <view class="download-icon">🗺️</view>
+        <view class="download-text">
+          <text class="download-title">离线地图管理</text>
+          <text class="download-desc">下载地图瓦片，无网也能看地图</text>
+        </view>
+        <text class="download-arrow">›</text>
+      </view>
     </view>
 
     <view class="tabs">
@@ -234,6 +243,12 @@ async function handleDownloadTasks() {
   }
 }
 
+function handleOfflineMap() {
+  uni.navigateTo({
+    url: '/pages/inspection/offline-map'
+  })
+}
+
 async function handleStart(item) {
   uni.showModal({
     title: '开始巡检',
@@ -420,6 +435,9 @@ onShow(() => {
 
 .download-section {
   padding: 20rpx 30rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
 }
 
 .download-card {
@@ -429,6 +447,10 @@ onShow(() => {
   border-radius: 16rpx;
   padding: 28rpx;
   box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+
+  &.map-card {
+    background: linear-gradient(135deg, #e6f7ff, #f6ffed);
+  }
 }
 
 .download-icon {

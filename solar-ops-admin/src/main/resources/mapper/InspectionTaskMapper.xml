@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.solar.ops.admin.mapper.InspectionTaskMapper">
+
+    <resultMap id="InspectionTaskMap" type="com.solar.ops.admin.entity.InspectionTask">
+        <id column="id" property="id"/>
+        <result column="task_no" property="taskNo"/>
+        <result column="task_name" property="taskName"/>
+        <result column="station_id" property="stationId"/>
+        <result column="station_name" property="stationName"/>
+        <result column="task_type" property="taskType"/>
+        <result column="priority" property="priority"/>
+        <result column="plan_start_time" property="planStartTime"/>
+        <result column="plan_end_time" property="planEndTime"/>
+        <result column="actual_start_time" property="actualStartTime"/>
+        <result column="actual_end_time" property="actualEndTime"/>
+        <result column="status" property="status"/>
+        <result column="assignee_id" property="assigneeId"/>
+        <result column="assignee_name" property="assigneeName"/>
+        <result column="description" property="description"/>
+        <result column="remark" property="remark"/>
+        <result column="deleted" property="deleted"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="create_by" property="createBy"/>
+        <result column="update_by" property="updateBy"/>
+    </resultMap>
+
+    <resultMap id="TaskDetailMap" type="com.solar.ops.admin.vo.InspectionTaskDetailVO" extends="InspectionTaskMap">
+        <collection property="items" ofType="com.solar.ops.admin.vo.TaskItemWithDetailVO">
+            <id column="ti_id" property="id"/>
+            <result column="ti_task_id" property="taskId"/>
+            <result column="ti_item_id" property="itemId"/>
+            <result column="ti_item_code" property="itemCode"/>
+            <result column="ti_item_name" property="itemName"/>
+            <result column="ti_item_type" property="itemType"/>
+            <result column="ti_asset_id" property="assetId"/>
+            <result column="ti_asset_name" property="assetName"/>
+            <result column="ti_asset_code" property="assetCode"/>
+            <result column="ti_standard_value" property="standardValue"/>
+            <result column="ti_min_value" property="minValue"/>
+            <result column="ti_max_value" property="maxValue"/>
+            <result column="ti_unit" property="unit"/>
+            <result column="ti_is_required" property="isRequired"/>
+            <result column="ti_sort_order" property="sortOrder"/>
+            <result column="ti_description" property="description"/>
+        </collection>
+    </resultMap>
+
+    <select id="selectTaskPage" resultMap="InspectionTaskMap">
+        SELECT
+            t.id,
+            t.task_no,
+            t.task_name,
+            t.station_id,
+            t.station_name,
+            t.task_type,
+            t.priority,
+            t.plan_start_time,
+            t.plan_end_time,
+            t.actual_start_time,
+            t.actual_end_time,
+            t.status,
+            t.assignee_id,
+            t.assignee_name,
+            t.description,
+            t.remark,
+            t.deleted,
+            t.create_time,
+            t.update_time
+        FROM inspection_task t
+        WHERE t.deleted = 0
+        <if test="assigneeId != null">
+            AND t.assignee_id = #{assigneeId}
+        </if>
+        <if test="status != null">
+            AND t.status = #{status}
+        </if>
+        <if test="stationId != null">
+            AND t.station_id = #{stationId}
+        </if>
+        ORDER BY t.priority DESC, t.plan_start_time ASC
+    </select>
+
+    <select id="selectTaskDetailById" resultMap="TaskDetailMap">
+        SELECT
+            t.id,
+            t.task_no,
+            t.task_name,
+            t.station_id,
+            t.station_name,
+            t.task_type,
+            t.priority,
+            t.plan_start_time,
+            t.plan_end_time,
+            t.actual_start_time,
+            t.actual_end_time,
+            t.status,
+            t.assignee_id,
+            t.assignee_name,
+            t.description,
+            t.remark,
+            ti.id AS ti_id,
+            ti.task_id AS ti_task_id,
+            ti.item_id AS ti_item_id,
+            ti.item_code AS ti_item_code,
+            ti.item_name AS ti_item_name,
+            ti.item_type AS ti_item_type,
+            ti.asset_id AS ti_asset_id,
+            ti.asset_name AS ti_asset_name,
+            ti.asset_code AS ti_asset_code,
+            ti.standard_value AS ti_standard_value,
+            ti.min_value AS ti_min_value,
+            ti.max_value AS ti_max_value,
+            ti.unit AS ti_unit,
+            ti.is_required AS ti_is_required,
+            ti.sort_order AS ti_sort_order,
+            ti.description AS ti_description
+        FROM inspection_task t
+        LEFT JOIN inspection_task_item ti ON t.id = ti.task_id
+        WHERE t.id = #{id} AND t.deleted = 0
+        ORDER BY ti.sort_order ASC
+    </select>
+
+</mapper>

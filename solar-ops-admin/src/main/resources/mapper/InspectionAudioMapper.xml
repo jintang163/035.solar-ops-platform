@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.solar.ops.admin.mapper.InspectionAudioMapper">
+
+    <resultMap id="InspectionAudioMap" type="com.solar.ops.admin.entity.InspectionAudio">
+        <id column="id" property="id"/>
+        <result column="audio_no" property="audioNo"/>
+        <result column="result_id" property="resultId"/>
+        <result column="result_item_id" property="resultItemId"/>
+        <result column="task_id" property="taskId"/>
+        <result column="asset_id" property="assetId"/>
+        <result column="audio_url" property="audioUrl"/>
+        <result column="file_size" property="fileSize"/>
+        <result column="duration" property="duration"/>
+        <result column="record_time" property="recordTime"/>
+        <result column="longitude" property="longitude"/>
+        <result column="latitude" property="latitude"/>
+        <result column="remark" property="remark"/>
+        <result column="is_offline" property="isOffline"/>
+        <result column="sync_status" property="syncStatus"/>
+        <result column="deleted" property="deleted"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <select id="selectByResultId" resultMap="InspectionAudioMap">
+        SELECT
+            id,
+            audio_no,
+            result_id,
+            result_item_id,
+            task_id,
+            asset_id,
+            audio_url,
+            file_size,
+            duration,
+            record_time,
+            longitude,
+            latitude,
+            remark,
+            is_offline,
+            sync_status,
+            deleted,
+            create_time,
+            update_time
+        FROM inspection_audio
+        WHERE result_id = #{resultId} AND deleted = 0
+        ORDER BY id ASC
+    </select>
+
+    <select id="selectByResultItemId" resultMap="InspectionAudioMap">
+        SELECT
+            id,
+            audio_no,
+            result_id,
+            result_item_id,
+            task_id,
+            asset_id,
+            audio_url,
+            file_size,
+            duration,
+            record_time,
+            longitude,
+            latitude,
+            remark,
+            is_offline,
+            sync_status,
+            deleted,
+            create_time,
+            update_time
+        FROM inspection_audio
+        WHERE result_item_id = #{resultItemId} AND deleted = 0
+        ORDER BY id ASC
+    </select>
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO inspection_audio
+        (audio_no, result_id, result_item_id, task_id, asset_id, audio_url,
+         file_size, duration, record_time, longitude, latitude, remark,
+         is_offline, sync_status, create_time, update_time)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.audioNo}, #{item.resultId}, #{item.resultItemId}, #{item.taskId},
+             #{item.assetId}, #{item.audioUrl}, #{item.fileSize}, #{item.duration},
+             #{item.recordTime}, #{item.longitude}, #{item.latitude}, #{item.remark},
+             #{item.isOffline}, #{item.syncStatus}, #{item.createTime}, #{item.updateTime})
+        </foreach>
+    </insert>
+
+</mapper>

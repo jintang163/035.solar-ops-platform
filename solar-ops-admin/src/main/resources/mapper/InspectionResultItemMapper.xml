@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.solar.ops.admin.mapper.InspectionResultItemMapper">
+
+    <resultMap id="InspectionResultItemMap" type="com.solar.ops.admin.entity.InspectionResultItem">
+        <id column="id" property="id"/>
+        <result column="result_id" property="resultId"/>
+        <result column="task_item_id" property="taskItemId"/>
+        <result column="item_id" property="itemId"/>
+        <result column="item_name" property="itemName"/>
+        <result column="item_type" property="itemType"/>
+        <result column="asset_id" property="assetId"/>
+        <result column="asset_name" property="assetName"/>
+        <result column="asset_code" property="assetCode"/>
+        <result column="check_value" property="checkValue"/>
+        <result column="standard_value" property="standardValue"/>
+        <result column="is_normal" property="isNormal"/>
+        <result column="abnormal_desc" property="abnormalDesc"/>
+        <result column="remark" property="remark"/>
+        <result column="check_time" property="checkTime"/>
+        <result column="longitude" property="longitude"/>
+        <result column="latitude" property="latitude"/>
+        <result column="deleted" property="deleted"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <select id="selectByResultId" resultMap="InspectionResultItemMap">
+        SELECT
+            id,
+            result_id,
+            task_item_id,
+            item_id,
+            item_name,
+            item_type,
+            asset_id,
+            asset_name,
+            asset_code,
+            check_value,
+            standard_value,
+            is_normal,
+            abnormal_desc,
+            remark,
+            check_time,
+            longitude,
+            latitude,
+            deleted,
+            create_time,
+            update_time
+        FROM inspection_result_item
+        WHERE result_id = #{resultId} AND deleted = 0
+        ORDER BY id ASC
+    </select>
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO inspection_result_item
+        (result_id, task_item_id, item_id, item_name, item_type, asset_id, asset_name, asset_code,
+         check_value, standard_value, is_normal, abnormal_desc, remark, check_time,
+         longitude, latitude, create_time, update_time)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.resultId}, #{item.taskItemId}, #{item.itemId}, #{item.itemName}, #{item.itemType},
+             #{item.assetId}, #{item.assetName}, #{item.assetCode}, #{item.checkValue},
+             #{item.standardValue}, #{item.isNormal}, #{item.abnormalDesc}, #{item.remark},
+             #{item.checkTime}, #{item.longitude}, #{item.latitude}, #{item.createTime}, #{item.updateTime})
+        </foreach>
+    </insert>
+
+</mapper>

@@ -199,16 +199,47 @@
       <text class="submit-icon">📋</text>
       <text class="submit-text">提交巡检</text>
     </view>
+
+    <view class="permission-bar">
+      <view class="perm-item" :class="{ ok: permStatus.camera }" @click="checkCameraPermission">
+        <text class="perm-icon">📷</text>
+        <text class="perm-text">相机</text>
+      </view>
+      <view class="perm-item" :class="{ ok: permStatus.audio }" @click="checkAudioPermission">
+        <text class="perm-icon">🎤</text>
+        <text class="perm-text">录音</text>
+      </view>
+      <view class="perm-item" :class="{ ok: permStatus.location }" @click="checkLocationPermission">
+        <text class="perm-icon">📍</text>
+        <text class="perm-text">定位</text>
+      </view>
+      <view class="perm-item" :class="{ ok: permStatus.storage }" @click="checkStoragePermission">
+        <text class="perm-icon">💾</text>
+        <text class="perm-text">存储</text>
+      </view>
+    </view>
+
+    <canvas 
+      canvas-id="watermark_canvas" 
+      id="watermark_canvas"
+      style="position: fixed; left: -9999px; top: -9999px; width: 1280px; height: 1280px;"
+    ></canvas>
+    <canvas 
+      canvas-id="compress_canvas" 
+      id="compress_canvas"
+      style="position: fixed; left: -9999px; top: -9999px; width: 1280px; height: 1280px;"
+    ></canvas>
   </view>
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted, reactive } from 'vue'
 import { onLoad, onBackPress } from '@dcloudio/uni-app'
 import inspectionDB from '@/utils/inspection-db.js'
 import syncService from '@/utils/sync-service.js'
 import photoUtil from '@/utils/photo-util.js'
 import audioUtil from '@/utils/audio-util.js'
+import permission from '@/utils/permission.js'
 
 const taskId = ref(null)
 const task = ref(null)
@@ -222,6 +253,14 @@ const recordingDuration = ref(0)
 const recordingItem = ref(null)
 const isSubmitting = ref(false)
 const startTime = ref(null)
+
+const permStatus = reactive({
+  camera: false,
+  audio: false,
+  location: false,
+  storage: false
+})
+
 let recordTimer = null
 
 const completedCount = computed(() => {
@@ -633,9 +672,79 @@ async function fetchTaskDetail() {
   }
 }
 
+async function initPermissions() {
+  try {
+    const status = await permission.checkAllPermissions()
+    permStatus.camera = status.camera
+    permStatus.audio = status.audio
+    permStatus.location = status.location
+    permStatus.storage = status.storage
+  } catch (e) {
+    console.warn('权限检查失败', e)
+  }
+}
+
+async function checkCameraPermission() {
+  try {
+    await permission.requestCameraPermission()
+    permStatus.camera = true
+    uni.showToast({ title: '相机权限已获取', icon: 'success' })
+  } catch (e) {
+    permStatus.camera = false
+    showPermissionTip('相机')
+  }
+}
+
+async function checkAudioPermission() {
+  try {
+    await permission.requestAudioPermission()
+    permStatus.audio = true
+    uni.showToast({ title: '录音权限已获取', icon: 'success' })
+  } catch (e) {
+    permStatus.audio = false
+    showPermissionTip('录音')
+  }
+}
+
+async function checkLocationPermission() {
+  try {
+    await permission.requestLocationPermission()
+    permStatus.location = true
+    uni.showToast({ title: '定位权限已获取', icon: 'success' })
+  } catch (e) {
+    permStatus.location = false
+    showPermissionTip('定位')
+  }
+}
+
+async function checkStoragePermission() {
+  try {
+    await permission.requestStoragePermission()
+    permStatus.storage = true
+    uni.showToast({ title: '存储权限已获取', icon: 'success' })
+  } catch (e) {
+    permStatus.storage = false
+    showPermissionTip('存储')
+  }
+}
+
+function showPermissionTip(permName) {
+  uni.showModal({
+    title: '权限申请',
+    content: `需要${permName}权限才能正常使用巡检功能，请在设置中开启`,
+    confirmText: '去设置',
+    success: (res) => {
+      if (res.confirm) {
+        permission.gotoAppSettings()
+      }
+    }
+  })
+}
+
 onLoad((options) => {
   taskId.value = options.taskId ? parseInt(options.taskId) : null
   fetchTaskDetail()
+  initPermissions()
 })
 
 onUnmounted(() => {
@@ -1240,5 +1349,55 @@ onBackPress(() => {
 .submit-text {
   font-size: 28rpx;
   font-weight: 500;
+}
+
+.permission-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: space-around;
+  padding: 16rpx 30rpx;
+  background-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.perm-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10rpx 20rpx;
+  border-radius: 12rpx;
+  background-color: #f5f5f5;
+  
+  &.ok {
+    background-color: #f6ffed;
+    
+    .perm-icon {
+      opacity: 1;
+    }
+    
+    .perm-text {
+      color: #52c41a;
+    }
+  }
+}
+
+.perm-icon {
+  font-size: 32rpx;
+  margin-bottom: 4rpx;
+  opacity: 0.5;
+}
+
+.perm-text {
+  font-size: 22rpx;
+  color: #999;
+}
+
+.execute-page {
+  padding-top: 140rpx;
 }
 </style>

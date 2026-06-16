@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.solar.ops.admin.mapper.InspectionReportMapper">
+
+    <resultMap id="InspectionReportMap" type="com.solar.ops.admin.entity.InspectionReport">
+        <id column="id" property="id"/>
+        <result column="report_no" property="reportNo"/>
+        <result column="report_title" property="reportTitle"/>
+        <result column="report_type" property="reportType"/>
+        <result column="task_id" property="taskId"/>
+        <result column="result_id" property="resultId"/>
+        <result column="station_id" property="stationId"/>
+        <result column="station_name" property="stationName"/>
+        <result column="total_score" property="totalScore"/>
+        <result column="health_level" property="healthLevel"/>
+        <result column="total_items" property="totalItems"/>
+        <result column="pass_rate" property="passRate"/>
+        <result column="abnormal_count" property="abnormalCount"/>
+        <result column="problem_summary" property="problemSummary"/>
+        <result column="suggestions" property="suggestions"/>
+        <result column="report_content" property="reportContent"/>
+        <result column="generated_time" property="generatedTime"/>
+        <result column="generator_id" property="generatorId"/>
+        <result column="generator_name" property="generatorName"/>
+        <result column="deleted" property="deleted"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <select id="selectReportPage" resultMap="InspectionReportMap">
+        SELECT
+            r.id,
+            r.report_no,
+            r.report_title,
+            r.report_type,
+            r.task_id,
+            r.result_id,
+            r.station_id,
+            r.station_name,
+            r.total_score,
+            r.health_level,
+            r.total_items,
+            r.pass_rate,
+            r.abnormal_count,
+            r.problem_summary,
+            r.suggestions,
+            r.report_content,
+            r.generated_time,
+            r.generator_id,
+            r.generator_name,
+            r.deleted,
+            r.create_time,
+            r.update_time
+        FROM inspection_report r
+        WHERE r.deleted = 0
+        <if test="stationId != null">
+            AND r.station_id = #{stationId}
+        </if>
+        <if test="reportType != null">
+            AND r.report_type = #{reportType}
+        </if>
+        ORDER BY r.generated_time DESC
+    </select>
+
+    <select id="selectByResultId" resultMap="InspectionReportMap">
+        SELECT
+            id,
+            report_no,
+            report_title,
+            report_type,
+            task_id,
+            result_id,
+            station_id,
+            station_name,
+            total_score,
+            health_level,
+            total_items,
+            pass_rate,
+            abnormal_count,
+            problem_summary,
+            suggestions,
+            report_content,
+            generated_time,
+            generator_id,
+            generator_name,
+            deleted,
+            create_time,
+            update_time
+        FROM inspection_report
+        WHERE result_id = #{resultId} AND deleted = 0
+        LIMIT 1
+    </select>
+
+</mapper>

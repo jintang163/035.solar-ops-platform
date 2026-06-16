@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.solar.ops.admin.mapper.InspectionResultMapper">
+
+    <resultMap id="InspectionResultMap" type="com.solar.ops.admin.entity.InspectionResult">
+        <id column="id" property="id"/>
+        <result column="result_no" property="resultNo"/>
+        <result column="task_id" property="taskId"/>
+        <result column="task_no" property="taskNo"/>
+        <result column="station_id" property="stationId"/>
+        <result column="station_name" property="stationName"/>
+        <result column="inspector_id" property="inspectorId"/>
+        <result column="inspector_name" property="inspectorName"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="total_items" property="totalItems"/>
+        <result column="normal_items" property="normalItems"/>
+        <result column="abnormal_items" property="abnormalItems"/>
+        <result column="result_status" property="resultStatus"/>
+        <result column="overall_remark" property="overallRemark"/>
+        <result column="longitude" property="longitude"/>
+        <result column="latitude" property="latitude"/>
+        <result column="is_offline" property="isOffline"/>
+        <result column="sync_status" property="syncStatus"/>
+        <result column="upload_time" property="uploadTime"/>
+        <result column="deleted" property="deleted"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <select id="selectResultPage" resultMap="InspectionResultMap">
+        SELECT
+            r.id,
+            r.result_no,
+            r.task_id,
+            r.task_no,
+            r.station_id,
+            r.station_name,
+            r.inspector_id,
+            r.inspector_name,
+            r.start_time,
+            r.end_time,
+            r.total_items,
+            r.normal_items,
+            r.abnormal_items,
+            r.result_status,
+            r.overall_remark,
+            r.longitude,
+            r.latitude,
+            r.is_offline,
+            r.sync_status,
+            r.upload_time,
+            r.deleted,
+            r.create_time,
+            r.update_time
+        FROM inspection_result r
+        WHERE r.deleted = 0
+        <if test="stationId != null">
+            AND r.station_id = #{stationId}
+        </if>
+        <if test="inspectorId != null">
+            AND r.inspector_id = #{inspectorId}
+        </if>
+        <if test="resultStatus != null">
+            AND r.result_status = #{resultStatus}
+        </if>
+        ORDER BY r.create_time DESC
+    </select>
+
+</mapper>

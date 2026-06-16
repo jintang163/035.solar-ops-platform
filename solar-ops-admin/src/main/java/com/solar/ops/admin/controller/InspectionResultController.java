@@ -12,9 +12,11 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 import javax.validation.Valid;
+import java.math.BigDecimal;
 
 @RestController
 @RequestMapping("/api/inspection/results")
@@ -52,5 +54,31 @@ public class InspectionResultController {
     public Result<Long> generateReport(@ApiParam(value = "结果ID") @PathVariable Long id) {
         Long reportId = resultService.generateReport(id);
         return Result.success(reportId);
+    }
+
+    @PostMapping("/{id}/photos")
+    @ApiOperation(value = "上传巡检照片")
+    public Result<Long> uploadPhoto(@ApiParam(value = "结果ID") @PathVariable Long id,
+                                    @ApiParam(value = "检查项结果ID") @RequestParam(required = false) Long resultItemId,
+                                    @ApiParam(value = "照片类型 1-普通 2-红外") @RequestParam(required = false, defaultValue = "1") Integer photoType,
+                                    @ApiParam(value = "经度") @RequestParam(required = false) BigDecimal longitude,
+                                    @ApiParam(value = "纬度") @RequestParam(required = false) BigDecimal latitude,
+                                    @ApiParam(value = "是否有水印") @RequestParam(required = false) Boolean hasWatermark,
+                                    @ApiParam(value = "备注") @RequestParam(required = false) String remark,
+                                    @ApiParam(value = "照片文件") @RequestParam("file") MultipartFile file) {
+        Long photoId = resultService.uploadPhoto(id, resultItemId, file, photoType, longitude, latitude, hasWatermark, remark);
+        return Result.success(photoId);
+    }
+
+    @PostMapping("/{id}/audios")
+    @ApiOperation(value = "上传巡检录音")
+    public Result<Long> uploadAudio(@ApiParam(value = "结果ID") @PathVariable Long id,
+                                    @ApiParam(value = "检查项结果ID") @RequestParam(required = false) Long resultItemId,
+                                    @ApiParam(value = "经度") @RequestParam(required = false) BigDecimal longitude,
+                                    @ApiParam(value = "纬度") @RequestParam(required = false) BigDecimal latitude,
+                                    @ApiParam(value = "备注") @RequestParam(required = false) String remark,
+                                    @ApiParam(value = "录音文件") @RequestParam("file") MultipartFile file) {
+        Long audioId = resultService.uploadAudio(id, resultItemId, file, longitude, latitude, remark);
+        return Result.success(audioId);
     }
 }

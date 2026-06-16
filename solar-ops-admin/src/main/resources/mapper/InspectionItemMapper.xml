@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.solar.ops.admin.mapper.InspectionItemMapper">
+
+    <resultMap id="InspectionItemMap" type="com.solar.ops.admin.entity.InspectionItem">
+        <id column="id" property="id"/>
+        <result column="item_code" property="itemCode"/>
+        <result column="item_name" property="itemName"/>
+        <result column="item_type" property="itemType"/>
+        <result column="asset_type" property="assetType"/>
+        <result column="standard_value" property="standardValue"/>
+        <result column="min_value" property="minValue"/>
+        <result column="max_value" property="maxValue"/>
+        <result column="unit" property="unit"/>
+        <result column="is_required" property="isRequired"/>
+        <result column="description" property="description"/>
+        <result column="photo_required" property="photoRequired"/>
+        <result column="audio_required" property="audioRequired"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="status" property="status"/>
+        <result column="deleted" property="deleted"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="create_by" property="createBy"/>
+        <result column="update_by" property="updateBy"/>
+    </resultMap>
+
+    <select id="selectByAssetType" resultMap="InspectionItemMap">
+        SELECT
+            id,
+            item_code,
+            item_name,
+            item_type,
+            asset_type,
+            standard_value,
+            min_value,
+            max_value,
+            unit,
+            is_required,
+            description,
+            photo_required,
+            audio_required,
+            sort_order,
+            status,
+            deleted,
+            create_time,
+            update_time
+        FROM inspection_item
+        WHERE deleted = 0 AND status = 1
+        <if test="assetType != null and assetType != ''">
+            AND asset_type = #{assetType}
+        </if>
+        ORDER BY sort_order ASC, create_time DESC
+    </select>
+
+</mapper>

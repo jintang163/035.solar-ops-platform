@@ -15,20 +15,31 @@ import com.solar.ops.admin.vo.InspectionResultDetailVO;
 import com.solar.ops.common.exception.BusinessException;
 import com.solar.ops.common.page.PageQuery;
 import com.solar.ops.common.page.PageResult;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import javax.annotation.Resource;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.File;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
+@Slf4j
 @Service
 public class InspectionResultService extends ServiceImpl<InspectionResultMapper, InspectionResult> {
 
@@ -55,6 +66,12 @@ public class InspectionResultService extends ServiceImpl<InspectionResultMapper,
 
     @Resource
     private LoginUserHolder loginUserHolder;
+
+    @Value("${file.upload.path:/data/upload}")
+    private String uploadPath;
+
+    @Value("${file.access.url:/files}")
+    private String accessUrl;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -383,5 +400,105 @@ public class InspectionResultService extends ServiceImpl<InspectionResultMapper,
         LambdaQueryWrapper<InspectionResult> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(InspectionResult::getSyncStatus, 0);
         return list(wrapper);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public Long uploadPhoto(Long resultId, Long resultItemId, MultipartFile file,
+                            Integer photoType, BigDecimal longitude, BigDecimal latitude,
+                            Boolean hasWatermark, String remark) {
+        if (file.isEmpty()) {
+            throw new BusinessException("照片文件不能为空");
+        }
+
+        InspectionResult result = getById(resultId);
+        if (result == null) {
+            throw new BusinessException("巡检结果不存在");
+        }
+
+        String fileUrl = saveFile(file, "inspection/photo");
+        String thumbnailUrl = fileUrl;
+
+        InspectionPhoto photo = new InspectionPhoto();
+        photo.setPhotoNo(generatePhotoNo());
+        photo.setResultId(resultId);
+        photo.setResultItemId(resultItemId);
+        photo.setTaskId(result.getTaskId());
+        photo.setPhotoType(photoType != null ? photoType : 1);
+        photo.setPhotoUrl(fileUrl);
+        photo.setThumbnailUrl(thumbnailUrl);
+        photo.setFileSize(file.getSize());
+        photo.setWatermarkTime(LocalDateTime.now());
+        photo.setLongitude(longitude);
+        photo.setLatitude(latitude);
+        photo.setHasWatermark(hasWatermark != null && hasWatermark ? 1 : 0);
+        photo.setRemark(remark);
+        photo.setIsOffline(0);
+        photo.setSyncStatus(1);
+        photo.setCreateTime(LocalDateTime.now());
+        photo.setUpdateTime(LocalDateTime.now());
+
+        photoMapper.insert(photo);
+        return photo.getId();
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public Long uploadAudio(Long resultId, Long resultItemId, MultipartFile file,
+                            BigDecimal longitude, BigDecimal latitude, String remark) {
+        if (file.isEmpty()) {
+            throw new BusinessException("录音文件不能为空");
+        }
+
+        InspectionResult result = getById(resultId);
+        if (result == null) {
+            throw new BusinessException("巡检结果不存在");
+        }
+
+        String fileUrl = saveFile(file, "inspection/audio");
+
+        InspectionAudio audio = new InspectionAudio();
+        audio.setAudioNo(generateAudioNo());
+        audio.setResultId(resultId);
+        audio.setResultItemId(resultItemId);
+        audio.setTaskId(result.getTaskId());
+        audio.setAudioUrl(fileUrl);
+        audio.setFileSize(file.getSize());
+        audio.setDuration(0);
+        audio.setRecordTime(LocalDateTime.now());
+        audio.setLongitude(longitude);
+        audio.setLatitude(latitude);
+        audio.setRemark(remark);
+        audio.setIsOffline(0);
+        audio.setSyncStatus(1);
+        audio.setCreateTime(LocalDateTime.now());
+        audio.setUpdateTime(LocalDateTime.now());
+
+        audioMapper.insert(audio);
+        return audio.getId();
+    }
+
+    private String saveFile(MultipartFile file, String subDir) {
+        try {
+            String originalFilename = file.getOriginalFilename();
+            String extension = "";
+            if (originalFilename != null && originalFilename.contains(".")) {
+                extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+            }
+
+            String datePath = new SimpleDateFormat("yyyyMMdd").format(new java.util.Date());
+            String saveDir = uploadPath + File.separator + subDir + File.separator + datePath;
+            Path saveDirPath = Paths.get(saveDir);
+            if (!Files.exists(saveDirPath)) {
+                Files.createDirectories(saveDirPath);
+            }
+
+            String fileName = UUID.randomUUID().toString().replace("-", "") + extension;
+            Path filePath = saveDirPath.resolve(fileName);
+            file.transferTo(filePath.toFile());
+
+            return accessUrl + "/" + subDir + "/" + datePath + "/" + fileName;
+        } catch (IOException e) {
+            log.error("文件保存失败", e);
+            throw new BusinessException("文件保存失败: " + e.getMessage());
+        }
     }
 }

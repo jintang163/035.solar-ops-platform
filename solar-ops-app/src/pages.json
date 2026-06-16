@@ -144,6 +144,12 @@
       "style": {
         "navigationBarTitleText": "巡检结果"
       }
+    },
+    {
+      "path": "pages/inspection/offline-map",
+      "style": {
+        "navigationBarTitleText": "离线地图管理"
+      }
     }
   ],
   "globalStyle": {

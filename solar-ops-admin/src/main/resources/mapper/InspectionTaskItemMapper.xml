@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.solar.ops.admin.mapper.InspectionTaskItemMapper">
+
+    <resultMap id="InspectionTaskItemMap" type="com.solar.ops.admin.entity.InspectionTaskItem">
+        <id column="id" property="id"/>
+        <result column="task_id" property="taskId"/>
+        <result column="item_id" property="itemId"/>
+        <result column="asset_id" property="assetId"/>
+        <result column="asset_name" property="assetName"/>
+        <result column="asset_code" property="assetCode"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="remark" property="remark"/>
+        <result column="deleted" property="deleted"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <select id="selectByTaskId" resultMap="InspectionTaskItemMap">
+        SELECT
+            id,
+            task_id,
+            item_id,
+            asset_id,
+            asset_name,
+            asset_code,
+            sort_order,
+            remark,
+            deleted,
+            create_time,
+            update_time
+        FROM inspection_task_item
+        WHERE task_id = #{taskId} AND deleted = 0
+        ORDER BY sort_order ASC, id ASC
+    </select>
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO inspection_task_item
+        (task_id, item_id, asset_id, asset_name, asset_code, sort_order, remark, create_time, update_time)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.taskId}, #{item.itemId}, #{item.assetId}, #{item.assetName}, #{item.assetCode},
+             #{item.sortOrder}, #{item.remark}, #{item.createTime}, #{item.updateTime})
+        </foreach>
+    </insert>
+
+</mapper>
