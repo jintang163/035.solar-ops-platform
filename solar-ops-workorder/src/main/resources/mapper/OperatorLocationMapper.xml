@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.solar.ops.workorder.mapper.OperatorLocationMapper">
+
+    <resultMap id="BaseResultMap" type="com.solar.ops.workorder.entity.OperatorLocation">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="user_name" property="userName"/>
+        <result column="longitude" property="longitude"/>
+        <result column="latitude" property="latitude"/>
+        <result column="accuracy" property="accuracy"/>
+        <result column="speed" property="speed"/>
+        <result column="heading" property="heading"/>
+        <result column="location_type" property="locationType"/>
+        <result column="report_time" property="reportTime"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, user_id, user_name, longitude, latitude, accuracy, speed, heading,
+        location_type, report_time, create_time, update_time, deleted
+    </sql>
+
+    <select id="selectWithinRadius" resultMap="BaseResultMap">
+        SELECT
+            <include refid="Base_Column_List"/>
+        FROM operator_location
+        WHERE deleted = 0
+          AND latitude IS NOT NULL
+          AND longitude IS NOT NULL
+          AND (
+            6371 * 2 * ASIN(
+                SQRT(
+                    POW(SIN((#{latitude} * PI() / 180 - latitude * PI() / 180) / 2), 2) +
+                    COS(#{latitude} * PI() / 180) * COS(latitude * PI() / 180) *
+                    POW(SIN((#{longitude} * PI() / 180 - longitude * PI() / 180) / 2), 2)
+                )
+            )
+        ) &lt;= #{radiusKm}
+        ORDER BY create_time DESC
+    </select>
+
+</mapper>

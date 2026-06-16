@@ -39,3 +39,27 @@ export function completeWorkOrder(data) {
 export function closeWorkOrder(data) {
   return post('/workorder/close', data)
 }
+
+export function reportLocation(data) {
+  return post('/workorder/dispatch/location/report', data)
+}
+
+export function getRecommendOperators(params) {
+  return get('/workorder/dispatch/operators/recommend', params)
+}
+
+export function getAllOperatorLocations(params) {
+  return get('/workorder/dispatch/operators/locations', params)
+}
+
+export function getOperatorLocation(userId) {
+  return get(`/workorder/dispatch/operators/${userId}/location`)
+}
+
+export function assignDispatchOrder(data) {
+  return post('/workorder/dispatch/assign', data)
+}
+
+export function autoAssignOrder(data) {
+  return post('/workorder/dispatch/autoAssign', data)
+}

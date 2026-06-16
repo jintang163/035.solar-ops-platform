@@ -56,6 +56,13 @@
       }
     },
     {
+      "path": "pages/workorder/dispatch-map",
+      "style": {
+        "navigationBarTitleText": "智能调度",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/drone/drone",
       "style": {
         "navigationBarTitleText": "无人机巡检",

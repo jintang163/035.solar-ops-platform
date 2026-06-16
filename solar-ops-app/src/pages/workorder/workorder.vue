@@ -1,5 +1,16 @@
 <template>
   <view class="workorder-page">
+    <view class="quick-actions">
+      <view class="action-card dispatch" @click="goDispatch">
+        <view class="action-icon">🗺️</view>
+        <view class="action-info">
+          <text class="action-title">智能调度</text>
+          <text class="action-desc">地图派单·人员定位</text>
+        </view>
+        <text class="action-arrow">›</text>
+      </view>
+    </view>
+
     <view class="tabs">
       <view 
         v-for="(tab, index) in tabs" 
@@ -222,6 +233,12 @@ function loadMore() {
   fetchOrderList()
 }
 
+function goDispatch() {
+  uni.navigateTo({
+    url: '/pages/workorder/dispatch-map'
+  })
+}
+
 onReachBottom(() => {
   loadMore()
 })
@@ -243,6 +260,50 @@ onMounted(() => {
 .workorder-page {
   min-height: 100vh;
   background-color: #f5f5f5;
+}
+
+.quick-actions {
+  padding: 20rpx 30rpx;
+}
+
+.action-card {
+  display: flex;
+  align-items: center;
+  padding: 28rpx;
+  background-color: #fff;
+  border-radius: 16rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+
+  &.dispatch {
+    background: linear-gradient(135deg, #e6f7ff, #f6ffed);
+  }
+}
+
+.action-icon {
+  font-size: 48rpx;
+  margin-right: 20rpx;
+}
+
+.action-info {
+  flex: 1;
+}
+
+.action-title {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4rpx;
+}
+
+.action-desc {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.action-arrow {
+  font-size: 36rpx;
+  color: #ccc;
 }
 
 .tabs {

@@ -1,21 +1,27 @@
 <script setup>
 import { onLaunch, onShow, onHide } from '@dcloudio/uni-app'
-import { getToken } from '@/utils/auth'
+import { getToken, isOnline } from '@/utils/auth'
 import db from '@/utils/sqlite.js'
 import syncService from '@/utils/sync-service.js'
+import locationService from '@/utils/location-service.js'
 
 onLaunch(() => {
   console.log('App Launch')
   checkLogin()
   initInspection()
+  initLocationReport()
 })
 
 onShow(() => {
   console.log('App Show')
+  if (getToken()) {
+    locationService.startLocationReport()
+  }
 })
 
 onHide(() => {
   console.log('App Hide')
+  locationService.stopLocationReport()
 })
 
 function checkLogin() {
@@ -37,6 +43,17 @@ async function initInspection() {
   } catch (e) {
     console.error('巡检模块初始化失败:', e)
   }
+}
+
+function initLocationReport() {
+  const token = getToken()
+  if (!token) {
+    return
+  }
+  // #ifdef APP-PLUS
+  locationService.startLocationReport()
+  console.log('位置上报服务已启动')
+  // #endif
 }
 </script>
 
