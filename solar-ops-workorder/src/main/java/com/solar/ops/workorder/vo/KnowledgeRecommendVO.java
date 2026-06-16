@@ -1,19 +1,21 @@
-package com.solar.ops.workorder.entity;
+package com.solar.ops.workorder.vo;
 
-import com.baomidou.mybatisplus.annotation.TableName;
-import com.solar.ops.common.entity.BaseEntity;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
+
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Data
-@EqualsAndHashCode(callSuper = true)
-@TableName("fault_library")
-@ApiModel(value = "运维知识库实体")
-public class FaultLibrary extends BaseEntity {
+@ApiModel(value = "知识推荐结果VO")
+public class KnowledgeRecommendVO implements Serializable {
 
     private static final long serialVersionUID = 1L;
+
+    @ApiModelProperty(value = "知识库ID")
+    private Long id;
 
     @ApiModelProperty(value = "故障码")
     private String faultCode;
@@ -30,14 +32,11 @@ public class FaultLibrary extends BaseEntity {
     @ApiModelProperty(value = "故障描述")
     private String faultDesc;
 
-    @ApiModelProperty(value = "解决方案(纯文本)")
+    @ApiModelProperty(value = "解决方案(纯文本摘要)")
     private String solution;
 
     @ApiModelProperty(value = "富文本解决方案")
     private String solutionRichText;
-
-    @ApiModelProperty(value = "附件URL列表(JSON数组)")
-    private String attachments;
 
     @ApiModelProperty(value = "视频教程URL")
     private String videoUrl;
@@ -45,24 +44,27 @@ public class FaultLibrary extends BaseEntity {
     @ApiModelProperty(value = "标签(逗号分隔)")
     private String tags;
 
+    @ApiModelProperty(value = "推荐置信度 0-1")
+    private BigDecimal confidence;
+
+    @ApiModelProperty(value = "置信度等级：high-高 medium-中 low-低")
+    private String confidenceLevel;
+
+    @ApiModelProperty(value = "匹配原因说明")
+    private String matchReason;
+
     @ApiModelProperty(value = "点赞数")
     private Integer likeCount;
 
     @ApiModelProperty(value = "点踩数")
     private Integer dislikeCount;
 
-    @ApiModelProperty(value = "浏览次数")
-    private Integer viewCount;
-
     @ApiModelProperty(value = "使用次数")
     private Integer useCount;
-
-    @ApiModelProperty(value = "创建人ID")
-    private Long creatorId;
 
     @ApiModelProperty(value = "创建人姓名")
     private String creatorName;
 
-    @ApiModelProperty(value = "状态 0-草稿 1-已发布 2-已归档")
-    private Integer status;
+    @ApiModelProperty(value = "更新时间")
+    private LocalDateTime updateTime;
 }

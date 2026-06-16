@@ -14,7 +14,9 @@ import {
   Row,
   Col,
   Statistic,
-  InputNumber
+  InputNumber,
+  Select,
+  Tooltip
 } from 'antd'
 import {
   PlusOutlined,
@@ -24,7 +26,8 @@ import {
   ClockCircleOutlined,
   WarningOutlined,
   ThunderboltOutlined,
-  SafetyCertificateOutlined
+  SafetyCertificateOutlined,
+  BulbOutlined
 } from '@ant-design/icons'
 import {
   getWorkOrderPage,
@@ -38,6 +41,7 @@ import {
   getWorkOrderStatistics
 } from '../../api/workorder'
 import { getUser } from '../../utils/auth'
+import KnowledgeRecommendModal from '../../components/KnowledgeRecommendModal'
 
 const { TextArea } = Input
 
@@ -69,12 +73,21 @@ const WorkOrderList = () => {
   const [detailVisible, setDetailVisible] = useState(false)
   const [addVisible, setAddVisible] = useState(false)
   const [actionVisible, setActionVisible] = useState(false)
+  const [recommendVisible, setRecommendVisible] = useState(false)
   const [currentOrder, setCurrentOrder] = useState(null)
   const [actionType, setActionType] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
   const [addLoading, setAddLoading] = useState(false)
   const [addForm] = Form.useForm()
   const [actionForm] = Form.useForm()
+  const [recommendParams, setRecommendParams] = useState({
+    faultCode: '',
+    faultName: '',
+    description: '',
+    faultLevel: null,
+    stationId: null,
+    inverterId: null
+  })
 
   const fetchStatistics = useCallback(async () => {
     try {
@@ -181,7 +194,56 @@ const WorkOrderList = () => {
 
   const handleAdd = () => {
     addForm.resetFields()
+    setRecommendParams({
+      faultCode: '',
+      faultName: '',
+      description: '',
+      faultLevel: null,
+      stationId: null,
+      inverterId: null
+    })
     setAddVisible(true)
+  }
+
+  const handleTriggerRecommend = async () => {
+    try {
+      const values = await addForm.validateFields(['stationId', 'faultCode', 'description'])
+      setRecommendParams({
+        faultCode: values.faultCode || '',
+        faultName: values.faultName || '',
+        description: values.description || '',
+        faultLevel: values.faultLevel || null,
+        stationId: values.stationId || null,
+        inverterId: values.inverterId || null
+      })
+      setRecommendVisible(true)
+    } catch (e) {
+      if (e.errorFields) {
+        message.warning('请先填写电站ID和故障代码/故障描述')
+      }
+    }
+  }
+
+  const handleSelectSolution = (item) => {
+    const currentDesc = addForm.getFieldValue('description') || ''
+    const solutionText = item.solutionRichText
+      ? item.solutionRichText.replace(/<[^>]*>/g, '').trim()
+      : (item.solution || '')
+
+    if (!addForm.getFieldValue('faultName') && item.faultName) {
+      addForm.setFieldsValue({ faultName: item.faultName })
+    }
+    if (!addForm.getFieldValue('faultLevel') && item.faultLevel) {
+      addForm.setFieldsValue({ faultLevel: item.faultLevel })
+    }
+
+    addForm.setFieldsValue({
+      description: currentDesc
+        ? `${currentDesc}\n\n【推荐方案】\n${solutionText}`
+        : `【推荐方案】\n${solutionText}`
+    })
+
+    message.success('已应用推荐方案到工单描述')
   }
 
   const handleAddOk = async () => {
@@ -507,45 +569,110 @@ const WorkOrderList = () => {
       {renderActionModal()}
 
       <Modal
-        title="新建工单"
+        title={
+          <Space>
+            <span>新建工单</span>
+            <Tag color="purple">支持智能推荐</Tag>
+          </Space>
+        }
         open={addVisible}
         onOk={handleAddOk}
         onCancel={() => setAddVisible(false)}
         confirmLoading={addLoading}
         okText="提交"
         cancelText="取消"
-        width={500}
+        width={560}
       >
         <Form form={addForm} layout="vertical">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="stationId"
+                label="电站ID"
+                rules={[{ required: true, message: '请输入电站ID' }]}
+              >
+                <InputNumber placeholder="请输入电站ID" style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="inverterId" label="逆变器ID">
+                <InputNumber placeholder="请输入逆变器ID" style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="faultCode"
+                label="故障代码"
+                rules={[{ required: true, message: '请输入故障代码' }]}
+                tooltip="如: INV_NO_COMM"
+              >
+                <Input placeholder="请输入故障代码" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="faultLevel" label="故障级别">
+                <Select placeholder="请选择故障级别" allowClear>
+                  <Select.Option value={1}>低级</Select.Option>
+                  <Select.Option value={2}>中级</Select.Option>
+                  <Select.Option value={3}>高级</Select.Option>
+                  <Select.Option value={4}>紧急</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
           <Form.Item
-            name="stationId"
-            label="电站ID"
-            rules={[{ required: true, message: '请输入电站ID' }]}
+            name="faultName"
+            label="故障名称"
+            tooltip="如不填写，可通过智能推荐自动填充"
           >
-            <InputNumber placeholder="请输入电站ID" style={{ width: '100%' }} />
+            <Input placeholder="如: 逆变器通讯中断（可留空，点击智能推荐）" />
           </Form.Item>
           <Form.Item
-            name="inverterId"
-            label="逆变器ID"
+            label="智能推荐解决方案"
+            tooltip="基于TF-IDF算法匹配相似历史故障案例"
           >
-            <InputNumber placeholder="请输入逆变器ID" style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item
-            name="faultCode"
-            label="故障代码"
-            rules={[{ required: true, message: '请输入故障代码' }]}
-          >
-            <Input placeholder="请输入故障代码" />
+            <Tooltip title="根据故障码和描述智能匹配相似案例">
+              <Button
+                type="primary"
+                ghost
+                icon={<BulbOutlined />}
+                onClick={handleTriggerRecommend}
+                block
+              >
+                🔍 智能推荐相似案例及解决方案
+              </Button>
+            </Tooltip>
           </Form.Item>
           <Form.Item
             name="description"
             label="问题描述"
             rules={[{ required: true, message: '请输入问题描述' }]}
+            tooltip="推荐方案将自动填充到此处"
           >
-            <TextArea rows={4} placeholder="请详细描述问题" />
+            <TextArea
+              rows={5}
+              placeholder="请详细描述故障现象、发生时间、影响范围等...\n\n💡 提示：点击上方「智能推荐」按钮，系统将自动匹配相似案例的解决方案"
+            />
+          </Form.Item>
+          <Form.Item name="expectHours" label="预计完成时间(小时)">
+            <InputNumber placeholder="如: 24" style={{ width: '100%' }} min={1} />
           </Form.Item>
         </Form>
       </Modal>
+
+      <KnowledgeRecommendModal
+        visible={recommendVisible}
+        onCancel={() => setRecommendVisible(false)}
+        faultCode={recommendParams.faultCode}
+        faultName={recommendParams.faultName}
+        description={recommendParams.description}
+        faultLevel={recommendParams.faultLevel}
+        stationId={recommendParams.stationId}
+        inverterId={recommendParams.inverterId}
+        onSelectSolution={handleSelectSolution}
+      />
     </div>
   )
 }

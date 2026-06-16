@@ -28,6 +28,7 @@ import StocktakeList from '../pages/stocktakes/StocktakeList'
 import PurchaseSuggestionList from '../pages/purchase-suggestions/PurchaseSuggestionList'
 import GroupReport from '../pages/report/GroupReport'
 import OrgManagement from '../pages/settings/OrgManagement'
+import KnowledgeBaseList from '../pages/knowledge/KnowledgeBaseList'
 
 const routes = [
   {
@@ -62,6 +63,7 @@ const routes = [
       { path: 'stocktakes', element: <StocktakeList /> },
       { path: 'purchase-suggestions', element: <PurchaseSuggestionList /> },
       { path: 'report/group', element: <GroupReport /> },
+      { path: 'knowledge/list', element: <KnowledgeBaseList /> },
       { path: 'settings/org', element: <OrgManagement /> },
       { path: 'settings/user', element: <UserManagement /> }
     ]
