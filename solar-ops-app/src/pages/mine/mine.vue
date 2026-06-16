@@ -53,6 +53,11 @@
           <view class="menu-title">无人机巡检</view>
           <view class="menu-arrow">›</view>
         </view>
+        <view class="menu-item" @click="goToPage('station-compare')">
+          <view class="menu-icon">📊</view>
+          <view class="menu-title">电站对比</view>
+          <view class="menu-arrow">›</view>
+        </view>
         <view class="menu-item" @click="goToPage('knowledge')">
           <view class="menu-icon">📚</view>
           <view class="menu-title">运维知识库</view>
@@ -154,7 +159,8 @@ function goToPage(page) {
   const pageMap = {
     workorder: '/pages/workorder/workorder',
     drone: '/pages/drone/drone',
-    knowledge: '/pages/knowledge/knowledge'
+    knowledge: '/pages/knowledge/knowledge',
+    'station-compare': '/pages/station/station-compare'
   }
   if (pageMap[page]) {
     if (page === 'workorder') {

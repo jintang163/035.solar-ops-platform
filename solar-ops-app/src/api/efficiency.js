@@ -23,3 +23,7 @@ export function assessStationHealth(stationId) {
 export function getStationHealthList(data) {
   return post('/health/list', data)
 }
+
+export function compareStations(params) {
+  return post('/efficiency/compare', params)
+}

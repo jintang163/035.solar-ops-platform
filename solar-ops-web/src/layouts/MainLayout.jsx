@@ -74,6 +74,11 @@ const menuItems = [
       {
         key: '/efficiency/analysis',
         label: '效率分析'
+      },
+      {
+        key: '/station/compare',
+        icon: <BarChartOutlined />,
+        label: '电站对比'
       }
     ]
   },

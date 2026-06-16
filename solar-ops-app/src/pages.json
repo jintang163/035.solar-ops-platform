@@ -171,6 +171,13 @@
       "style": {
         "navigationBarTitleText": "知识详情"
       }
+    },
+    {
+      "path": "pages/station/station-compare",
+      "style": {
+        "navigationBarTitleText": "电站对比",
+        "enablePullDownRefresh": true
+      }
     }
   ],
   "globalStyle": {

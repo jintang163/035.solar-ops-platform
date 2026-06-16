@@ -61,3 +61,20 @@ export function getStationHealthList(data) {
     data
   })
 }
+
+export function compareStations(data) {
+  return request({
+    url: '/api/efficiency/compare',
+    method: 'post',
+    data
+  })
+}
+
+export function exportCompareReport(params) {
+  return request({
+    url: '/api/efficiency/compare/export',
+    method: 'get',
+    params,
+    responseType: 'blob'
+  })
+}

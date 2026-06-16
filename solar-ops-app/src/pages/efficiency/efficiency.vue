@@ -1,6 +1,17 @@
 <template>
   <view class="efficiency-page">
     <view class="section">
+      <view class="compare-entry" @click="goToCompare">
+        <view class="entry-content">
+          <view class="entry-title">电站对比</view>
+          <view class="entry-desc">多站指标横向对比，快速定位优化方向</view>
+        </view>
+        <view class="entry-icon">⚡</view>
+        <view class="entry-arrow">›</view>
+      </view>
+    </view>
+
+    <view class="section">
       <view class="section-header">
         <view class="section-title">系统健康度</view>
       </view>
@@ -367,6 +378,12 @@ watch(activeDate, () => {
   fetchRankData()
 })
 
+function goToCompare() {
+  uni.navigateTo({
+    url: '/pages/station/station-compare'
+  })
+}
+
 onMounted(async () => {
   await fetchStationList()
   fetchHealthData()
@@ -380,6 +397,41 @@ onMounted(async () => {
   min-height: 100vh;
   background-color: #f5f5f5;
   padding: 20rpx 0;
+}
+
+.compare-entry {
+  display: flex;
+  align-items: center;
+  padding: 32rpx;
+  background: linear-gradient(135deg, #1890ff 0%, #52c41a 100%);
+  border-radius: 16rpx;
+  box-shadow: 0 4rpx 16rpx rgba(24, 144, 255, 0.25);
+}
+
+.entry-content {
+  flex: 1;
+  color: #ffffff;
+}
+
+.entry-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  margin-bottom: 8rpx;
+}
+
+.entry-desc {
+  font-size: 24rpx;
+  opacity: 0.85;
+}
+
+.entry-icon {
+  font-size: 48rpx;
+  margin-right: 16rpx;
+}
+
+.entry-arrow {
+  font-size: 40rpx;
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .section {
