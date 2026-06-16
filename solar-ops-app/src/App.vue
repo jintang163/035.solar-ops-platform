@@ -1,10 +1,13 @@
 <script setup>
 import { onLaunch, onShow, onHide } from '@dcloudio/uni-app'
 import { getToken } from '@/utils/auth'
+import db from '@/utils/sqlite.js'
+import syncService from '@/utils/sync-service.js'
 
 onLaunch(() => {
   console.log('App Launch')
   checkLogin()
+  initInspection()
 })
 
 onShow(() => {
@@ -21,6 +24,18 @@ function checkLogin() {
     uni.redirectTo({
       url: '/pages/login/login'
     })
+  }
+}
+
+async function initInspection() {
+  try {
+    await db.openDB()
+    console.log('SQLite数据库初始化成功')
+    
+    syncService.init()
+    console.log('离线同步服务初始化成功')
+  } catch (e) {
+    console.error('巡检模块初始化失败:', e)
   }
 }
 </script>

@@ -118,6 +118,32 @@
       "style": {
         "navigationBarTitleText": "备件出库扫码"
       }
+    },
+    {
+      "path": "pages/inspection/inspection",
+      "style": {
+        "navigationBarTitleText": "离线巡检",
+        "enablePullDownRefresh": true,
+        "backgroundTextStyle": "dark"
+      }
+    },
+    {
+      "path": "pages/inspection/task-detail",
+      "style": {
+        "navigationBarTitleText": "任务详情"
+      }
+    },
+    {
+      "path": "pages/inspection/execute",
+      "style": {
+        "navigationBarTitleText": "巡检执行"
+      }
+    },
+    {
+      "path": "pages/inspection/result-detail",
+      "style": {
+        "navigationBarTitleText": "巡检结果"
+      }
     }
   ],
   "globalStyle": {
