@@ -1,7 +1,14 @@
 package com.solar.ops.workorder.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.solar.ops.workorder.entity.DispatchInverter;
+import com.solar.ops.workorder.entity.DispatchStation;
 import com.solar.ops.workorder.entity.DispatchUser;
+import com.solar.ops.workorder.entity.OperatorLocation;
+import com.solar.ops.workorder.entity.WorkOrder;
+import com.solar.ops.workorder.mapper.DispatchInverterMapper;
+import com.solar.ops.workorder.mapper.DispatchSkillTagMapper;
+import com.solar.ops.workorder.mapper.DispatchStationMapper;
 import com.solar.ops.workorder.mapper.DispatchUserMapper;
 import com.solar.ops.workorder.mapper.OperatorLocationMapper;
 import com.solar.ops.workorder.mapper.WorkOrderMapper;
@@ -14,7 +21,13 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -25,11 +38,70 @@ public class DispatchService {
     private final OperatorLocationMapper operatorLocationMapper;
     private final DispatchUserMapper dispatchUserMapper;
     private final WorkOrderMapper workOrderMapper;
+    private final DispatchStationMapper dispatchStationMapper;
+    private final DispatchInverterMapper dispatchInverterMapper;
+    private final DispatchSkillTagMapper dispatchSkillTagMapper;
 
     private static final double EARTH_RADIUS_KM = 6371.0;
     private static final int MAX_RECOMMEND_COUNT = 10;
     private static final double DEFAULT_SEARCH_RADIUS_KM = 50.0;
     private static final double AVG_SPEED_KMH = 30.0;
+    private static final long LOCATION_EXPIRE_MINUTES = 30;
+
+    public List<OperatorRecommendVO> recommendByOrder(Long orderId, Long stationId, BigDecimal stationLng,
+                                                     BigDecimal stationLat, String requiredSkill, Integer faultLevel) {
+        BigDecimal lng = stationLng;
+        BigDecimal lat = stationLat;
+
+        if ((lng == null || lat == null) && orderId != null) {
+            WorkOrder order = workOrderMapper.selectById(orderId);
+            if (order != null) {
+                BigDecimal[] coords = resolveLocation(order);
+                if (coords != null && coords[0] != null && coords[1] != null) {
+                    lng = coords[0];
+                    lat = coords[1];
+                }
+                if (stationId == null) {
+                    stationId = order.getStationId();
+                }
+                if (!StringUtils.hasText(requiredSkill)) {
+                    requiredSkill = order.getFaultName();
+                }
+                if (faultLevel == null) {
+                    faultLevel = order.getFaultLevel();
+                }
+            }
+        }
+
+        if (lng == null || lat == null) {
+            log.warn("无法获取有效经纬度, orderId: {}, stationId: {}", orderId, stationId);
+            return Collections.emptyList();
+        }
+
+        return recommendOperators(stationId, lng, lat, requiredSkill, faultLevel);
+    }
+
+    public BigDecimal[] resolveLocation(WorkOrder order) {
+        if (order == null) {
+            return null;
+        }
+
+        if (order.getInverterId() != null) {
+            DispatchInverter inverter = dispatchInverterMapper.selectById(order.getInverterId());
+            if (inverter != null && inverter.getLongitude() != null && inverter.getLatitude() != null) {
+                return new BigDecimal[]{inverter.getLongitude(), inverter.getLatitude()};
+            }
+        }
+
+        if (order.getStationId() != null) {
+            DispatchStation station = dispatchStationMapper.selectById(order.getStationId());
+            if (station != null && station.getLongitude() != null && station.getLatitude() != null) {
+                return new BigDecimal[]{station.getLongitude(), station.getLatitude()};
+            }
+        }
+
+        return null;
+    }
 
     public List<OperatorRecommendVO> recommendOperators(Long stationId, BigDecimal stationLng, BigDecimal stationLat,
                                                         String requiredSkill, Integer faultLevel) {
@@ -82,7 +154,7 @@ public class DispatchService {
                     location.getLatitude().doubleValue(), location.getLongitude().doubleValue());
             vo.setDistanceKm(BigDecimal.valueOf(distance).setScale(2, RoundingMode.HALF_UP));
 
-            List<String> skillTags = parseSkillTags(user.getRole());
+            List<String> skillTags = getUserSkillTags(userId);
             vo.setSkillTags(skillTags);
 
             int skillScore = calculateSkillScore(skillTags, requiredSkill);
@@ -113,6 +185,42 @@ public class DispatchService {
                 .collect(Collectors.toList());
     }
 
+    private List<String> getUserSkillTags(Long userId) {
+        List<String> tags = new ArrayList<>();
+
+        try {
+            List<String> skillTags = dispatchSkillTagMapper.selectTagNamesByUserId(userId);
+            if (skillTags != null && !skillTags.isEmpty()) {
+                tags.addAll(skillTags);
+            }
+        } catch (Exception e) {
+            log.debug("从技能标签表获取失败，尝试从role字段解析", e);
+        }
+
+        if (tags.isEmpty()) {
+            try {
+                DispatchUser user = dispatchUserMapper.selectById(userId);
+                if (user != null && StringUtils.hasText(user.getRole())) {
+                    String role = user.getRole();
+                    String[] parts = role.split(",|，|;|；");
+                    for (String part : parts) {
+                        String tag = part.trim();
+                        if (StringUtils.hasText(tag)) {
+                            tags.add(tag);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("从role字段解析技能标签异常", e);
+            }
+        }
+
+        if (tags.isEmpty()) {
+            tags.add("常规运维");
+        }
+        return tags;
+    }
+
     private Map<Long, Integer> getActiveTaskCountMap(Set<Long> userIds) {
         if (CollectionUtils.isEmpty(userIds)) {
             return Collections.emptyMap();
@@ -120,9 +228,7 @@ public class DispatchService {
 
         LambdaQueryWrapper<WorkOrder> wrapper = new LambdaQueryWrapper<>();
         wrapper.in(WorkOrder::getHandlerId, userIds);
-        wrapper.in(WorkOrder::getStatus,
-                WorkOrderStatusEnum.ACCEPTED.getCode(),
-                WorkOrderStatusEnum.PROCESSING.getCode());
+        wrapper.in(WorkOrder::getStatus, 1, 2);
 
         List<WorkOrder> activeOrders = workOrderMapper.selectList(wrapper);
 
@@ -133,24 +239,6 @@ public class DispatchService {
             }
         }
         return countMap;
-    }
-
-    private List<String> parseSkillTags(String role) {
-        List<String> tags = new ArrayList<>();
-        if (!StringUtils.hasText(role)) {
-            return tags;
-        }
-        String[] parts = role.split(",|，|;|；");
-        for (String part : parts) {
-            String tag = part.trim();
-            if (StringUtils.hasText(tag)) {
-                tags.add(tag);
-            }
-        }
-        if (tags.isEmpty()) {
-            tags.add("常规运维");
-        }
-        return tags;
     }
 
     private int calculateSkillScore(List<String> skillTags, String requiredSkill) {

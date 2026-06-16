@@ -1,0 +1,355 @@
+.dispatch-map-page {
+  padding: 16px;
+  background-color: #f0f2f5;
+  min-height: calc(100vh - 64px);
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.page-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-title h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.stats-row {
+  margin-bottom: 16px;
+}
+
+.main-content {
+  display: flex;
+}
+
+.left-panel,
+.center-panel,
+.right-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.orders-card {
+  height: 100%;
+}
+
+.orders-card .ant-table-tbody > tr {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.orders-card .ant-table-tbody > tr:hover {
+  background-color: #e6f7ff;
+}
+
+.orders-card .selected-row {
+  background-color: #e6f7ff !important;
+}
+
+.selected-row > td {
+  background-color: #e6f7ff !important;
+}
+
+.map-card {
+  height: 100%;
+}
+
+.map-container {
+  position: relative;
+  height: 500px;
+  background: linear-gradient(135deg, #a8e063, #56ab2f);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.map-view {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.2s ease;
+}
+
+.map-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.grid-line {
+  position: absolute;
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.grid-line.horizontal {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+
+.grid-line.vertical {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.map-center-marker {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.center-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #fff;
+  border: 2px solid #1890ff;
+  border-radius: 50%;
+  margin: 0 auto;
+}
+
+.center-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+.order-marker {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  cursor: pointer;
+  z-index: 10;
+}
+
+.marker-pin {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #ff4d4f;
+  color: #fff;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.marker-pin .anticon {
+  transform: rotate(45deg);
+}
+
+.order-pin {
+  background-color: #ff4d4f;
+}
+
+.marker-label {
+  text-align: center;
+  font-size: 11px;
+  color: #333;
+  background-color: rgba(255, 255, 255, 0.9);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 4px;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+.order-label {
+  color: #ff4d4f;
+  font-weight: 600;
+}
+
+.operator-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  z-index: 5;
+  transition: z-index 0.2s;
+}
+
+.operator-marker:hover {
+  z-index: 15;
+}
+
+.operator-marker.selected {
+  z-index: 20;
+}
+
+.marker-avatar {
+  border: 3px solid #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.operator-marker.selected .marker-avatar {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 3px rgba(24, 144, 255, 0.3);
+}
+
+.operator-marker .marker-label {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.operator-marker:hover .marker-label,
+.operator-marker.selected .marker-label {
+  opacity: 1;
+}
+
+.map-legend {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  background-color: rgba(255, 255, 255, 0.9);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.legend-item:last-child {
+  margin-bottom: 0;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.legend-dot.order-dot {
+  background-color: #ff4d4f;
+}
+
+.legend-dot.person-dot {
+  background-color: #1890ff;
+}
+
+.recommend-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.recommend-card .ant-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 420px;
+}
+
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 0;
+}
+
+.recommend-item {
+  display: flex !important;
+  align-items: center;
+  gap: 12px;
+  padding: 12px !important;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  border: 1px solid transparent;
+}
+
+.recommend-item:hover {
+  background-color: #f5f5f5;
+}
+
+.recommend-item.selected {
+  background-color: #e6f7ff;
+  border-color: #1890ff;
+}
+
+.item-rank {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f0f0f0;
+  color: #999;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.recommend-item:first-child .item-rank {
+  background-color: #ff4d4f;
+  color: #fff;
+}
+
+.recommend-item:nth-child(2) .item-rank {
+  background-color: #ff7a45;
+  color: #fff;
+}
+
+.recommend-item:nth-child(3) .item-rank {
+  background-color: #ffa940;
+  color: #fff;
+}
+
+.item-avatar {
+  flex-shrink: 0;
+}
+
+.item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.item-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.item-tags {
+  margin-bottom: 4px;
+}
+
+.item-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: #999;
+}
+
+.item-score {
+  flex-shrink: 0;
+}

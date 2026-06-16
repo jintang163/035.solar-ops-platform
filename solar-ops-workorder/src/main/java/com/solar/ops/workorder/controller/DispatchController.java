@@ -50,14 +50,15 @@ public class DispatchController {
     @GetMapping("/operators/recommend")
     @ApiOperation("推荐最优接单人员")
     public Result<List<OperatorRecommendVO>> recommendOperators(
+            @ApiParam("工单ID") @RequestParam(required = false) Long orderId,
             @ApiParam("电站ID") @RequestParam(required = false) Long stationId,
-            @ApiParam("电站经度") @RequestParam(required = true) BigDecimal stationLng,
-            @ApiParam("电站纬度") @RequestParam(required = true) BigDecimal stationLat,
+            @ApiParam("电站经度") @RequestParam(required = false) BigDecimal stationLng,
+            @ApiParam("电站纬度") @RequestParam(required = false) BigDecimal stationLat,
             @ApiParam("所需技能") @RequestParam(required = false) String requiredSkill,
             @ApiParam("故障级别") @RequestParam(required = false) Integer faultLevel) {
 
-        List<OperatorRecommendVO> list = dispatchService.recommendOperators(
-                stationId, stationLng, stationLat, requiredSkill, faultLevel
+        List<OperatorRecommendVO> list = dispatchService.recommendByOrder(
+                orderId, stationId, stationLng, stationLat, requiredSkill, faultLevel
         );
 
         return Result.success(list);
@@ -113,12 +114,12 @@ public class DispatchController {
         Long operatorId = params.get("operatorId") != null ? Long.valueOf(params.get("operatorId").toString()) : null;
         String operatorName = params.get("operatorName") != null ? params.get("operatorName").toString() : null;
 
-        if (orderId == null || stationLng == null || stationLat == null) {
-            return Result.error("参数不完整");
+        if (orderId == null) {
+            return Result.error("工单ID不能为空");
         }
 
-        List<OperatorRecommendVO> recommendations = dispatchService.recommendOperators(
-                stationId, stationLng, stationLat, requiredSkill, faultLevel
+        List<OperatorRecommendVO> recommendations = dispatchService.recommendByOrder(
+                orderId, stationId, stationLng, stationLat, requiredSkill, faultLevel
         );
 
         if (recommendations.isEmpty()) {

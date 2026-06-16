@@ -78,3 +78,43 @@ export function getWorkOrderStatistics(params) {
     params
   })
 }
+
+export function getOperatorLocations(params) {
+  return request({
+    url: '/api/workorder/dispatch/operators/locations',
+    method: 'get',
+    params
+  })
+}
+
+export function getRecommendOperators(params) {
+  return request({
+    url: '/api/workorder/dispatch/operators/recommend',
+    method: 'get',
+    params
+  })
+}
+
+export function assignDispatchOrder(data) {
+  return request({
+    url: '/api/workorder/dispatch/assign',
+    method: 'post',
+    data
+  })
+}
+
+export function autoAssignOrder(data) {
+  return request({
+    url: '/api/workorder/dispatch/autoAssign',
+    method: 'post',
+    data
+  })
+}
+
+export function reportLocation(data) {
+  return request({
+    url: '/api/workorder/dispatch/location/report',
+    method: 'post',
+    data
+  })
+}
