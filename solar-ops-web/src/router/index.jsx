@@ -29,6 +29,8 @@ import PurchaseSuggestionList from '../pages/purchase-suggestions/PurchaseSugges
 import GroupReport from '../pages/report/GroupReport'
 import OrgManagement from '../pages/settings/OrgManagement'
 import KnowledgeBaseList from '../pages/knowledge/KnowledgeBaseList'
+import DataPlayback from '../pages/playback/DataPlayback'
+import FaultReview from '../pages/playback/FaultReview'
 
 const routes = [
   {
@@ -64,6 +66,8 @@ const routes = [
       { path: 'purchase-suggestions', element: <PurchaseSuggestionList /> },
       { path: 'report/group', element: <GroupReport /> },
       { path: 'knowledge/list', element: <KnowledgeBaseList /> },
+      { path: 'playback/data', element: <DataPlayback /> },
+      { path: 'playback/fault-review/:workOrderId', element: <FaultReview /> },
       { path: 'settings/org', element: <OrgManagement /> },
       { path: 'settings/user', element: <UserManagement /> }
     ]

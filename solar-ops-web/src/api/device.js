@@ -35,3 +35,26 @@ export function getOnlineDeviceCount() {
     method: 'get'
   })
 }
+
+export function getDevicePlaybackData(deviceId, params) {
+  return request({
+    url: `/api/device/data/playback/${deviceId}`,
+    method: 'get',
+    params
+  })
+}
+
+export function getWorkOrderPlaybackData(workOrderId) {
+  return request({
+    url: `/api/device/data/playback/workorder/${workOrderId}`,
+    method: 'get'
+  })
+}
+
+export function getInverterOptions(params) {
+  return request({
+    url: '/api/inverters',
+    method: 'get',
+    params
+  })
+}

@@ -27,7 +27,9 @@ import {
   StockOutlined,
   LineChartOutlined,
   TeamOutlined,
-  ApartmentOutlined
+  ApartmentOutlined,
+  HistoryOutlined,
+  PlayCircleOutlined
 } from '@ant-design/icons'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { getUser, clearAuth, getWorkspace, setWorkspace, setCurrentStationId } from '../utils/auth'
@@ -206,6 +208,18 @@ const menuItems = [
         key: '/report/group',
         icon: <BarChartOutlined />,
         label: '集团版报表'
+      }
+    ]
+  },
+  {
+    key: '/playback',
+    icon: <HistoryOutlined />,
+    label: '历史回放',
+    children: [
+      {
+        key: '/playback/data',
+        icon: <PlayCircleOutlined />,
+        label: '数据回放'
       }
     ]
   },

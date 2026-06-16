@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Table,
   Button,
@@ -32,7 +33,8 @@ import {
   WarningOutlined,
   ThunderboltOutlined,
   SafetyCertificateOutlined,
-  BulbOutlined
+  BulbOutlined,
+  BugOutlined
 } from '@ant-design/icons'
 import {
   getWorkOrderPage,
@@ -70,6 +72,7 @@ const FAULT_LEVEL_MAP = {
 const PAGE_SIZE = 10
 
 const WorkOrderList = () => {
+  const navigate = useNavigate()
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(false)
   const [total, setTotal] = useState(0)
@@ -511,13 +514,24 @@ const WorkOrderList = () => {
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: 280,
       fixed: 'right',
       render: (_, record) => (
-        <Space>
+        <Space size={4} wrap>
           <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => handleViewDetail(record)}>
             详情
           </Button>
+          {record.faultCode && record.inverterId && (
+            <Button
+              type="link"
+              size="small"
+              icon={<BugOutlined />}
+              style={{ color: '#722ed1' }}
+              onClick={() => navigate(`/playback/fault-review/${record.id}`)}
+            >
+              故障复盘
+            </Button>
+          )}
           {record.status === 0 && (
             <Button type="link" size="small" onClick={() => handleConfirmAction(record, 'accept', '接单')}>
               接单

@@ -2,7 +2,9 @@ package com.solar.ops.device.controller;
 
 import com.solar.ops.common.result.Result;
 import com.solar.ops.device.dto.InverterDataDTO;
+import com.solar.ops.device.dto.PlaybackQueryDTO;
 import com.solar.ops.device.service.DeviceDataService;
+import com.solar.ops.device.vo.DataPlaybackVO;
 import com.solar.ops.device.websocket.DeviceDataWebSocket;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -91,5 +93,36 @@ public class DeviceDataController {
         }
         deviceDataService.processDeviceData(data);
         return Result.success("模拟数据上报成功");
+    }
+
+    @ApiOperation("历史数据回放")
+    @GetMapping("/playback/{deviceId}")
+    public Result<DataPlaybackVO> getPlaybackData(
+            @ApiParam("设备ID") @PathVariable String deviceId,
+            @ApiParam("开始时间(毫秒时间戳)") @RequestParam(required = false) Long startTime,
+            @ApiParam("结束时间(毫秒时间戳)") @RequestParam(required = false) Long endTime,
+            @ApiParam("查询指标：power/voltage/temperature/current") @RequestParam(required = false) List<String> metrics,
+            @ApiParam("聚合方式：mean/max/min，默认mean") @RequestParam(required = false, defaultValue = "mean") String aggregation,
+            @ApiParam("时间间隔：1m/5m/15m/1h，自动计算") @RequestParam(required = false) String interval) {
+
+        PlaybackQueryDTO dto = new PlaybackQueryDTO();
+        dto.setDeviceId(deviceId);
+        dto.setStartTime(startTime);
+        dto.setEndTime(endTime);
+        dto.setMetrics(metrics);
+        dto.setAggregation(aggregation);
+        dto.setInterval(interval);
+
+        DataPlaybackVO result = deviceDataService.queryPlaybackData(dto);
+        return Result.success(result);
+    }
+
+    @ApiOperation("根据工单ID进行故障复盘回放")
+    @GetMapping("/playback/workorder/{workOrderId}")
+    public Result<DataPlaybackVO> getPlaybackByWorkOrder(
+            @ApiParam("工单ID") @PathVariable Long workOrderId) {
+
+        DataPlaybackVO result = deviceDataService.queryPlaybackByWorkOrder(workOrderId);
+        return Result.success(result);
     }
 }
