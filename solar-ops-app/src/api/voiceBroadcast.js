@@ -19,3 +19,11 @@ export function testBroadcast(content) {
 export function retryBroadcast(id) {
   return put(`/voice-broadcast/${id}/retry`)
 }
+
+export function getSpeakerDevices() {
+  return get('/voice-broadcast/speakers')
+}
+
+export function testSpeaker(deviceId) {
+  return post('/voice-broadcast/speakers/test', { deviceId })
+}

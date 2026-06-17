@@ -3,6 +3,7 @@ package com.solar.ops.admin.controller;
 import com.solar.ops.admin.service.VoiceBroadcastService;
 import com.solar.ops.admin.vo.VoiceBroadcastConfigVO;
 import com.solar.ops.admin.vo.VoiceBroadcastRecordVO;
+import com.solar.ops.admin.vo.VoiceSpeakerDeviceVO;
 import com.solar.ops.common.page.PageResult;
 import com.solar.ops.common.result.Result;
 import io.swagger.annotations.Api;
@@ -11,6 +12,7 @@ import io.swagger.annotations.ApiParam;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/voice-broadcast")
@@ -55,5 +57,17 @@ public class VoiceBroadcastController {
     public Result<Void> retryBroadcast(@PathVariable Long id) {
         voiceBroadcastService.retryBroadcast(id);
         return Result.success();
+    }
+
+    @GetMapping("/speakers")
+    @ApiOperation(value = "获取音箱设备列表")
+    public Result<List<VoiceSpeakerDeviceVO>> getSpeakerDevices() {
+        return Result.success(voiceBroadcastService.getSpeakerDevices());
+    }
+
+    @PostMapping("/speakers/test")
+    @ApiOperation(value = "测试音箱连接")
+    public Result<Boolean> testSpeaker(@RequestParam String deviceId) {
+        return Result.success(voiceBroadcastService.testSpeakerDevice(deviceId));
     }
 }

@@ -52,7 +52,21 @@
           </text>
         </view>
         <view class="card-content">
-          <text class="content-text">{{ item.content || item.description || '暂无内容' }}</text>
+          <view class="description-block" v-if="item.description">
+            <text class="description-label">告警描述</text>
+            <text class="description-text">{{ item.description }}</text>
+          </view>
+          <view class="broadcast-block">
+            <text class="broadcast-label">播报正文</text>
+            <text class="content-text">{{ item.broadcastContent || '暂无内容' }}</text>
+          </view>
+        </view>
+        <view class="card-push-status" v-if="item.successSpeakerCount != null || item.failSpeakerCount != null">
+          <text class="push-status-label">推送状态</text>
+          <view class="push-tags">
+            <text class="push-tag success">成功 {{ item.successSpeakerCount || 0 }}</text>
+            <text class="push-tag fail">失败 {{ item.failSpeakerCount || 0 }}</text>
+          </view>
         </view>
         <view class="card-meta">
           <text class="meta-item">🏢 {{ item.stationName || (item.stationId ? '电站#' + item.stationId : '-') }}</text>
@@ -145,9 +159,24 @@
               {{ getStatusText(currentItem.status) }}
             </text>
           </view>
+          <view class="detail-section" v-if="currentItem.description">
+            <text class="section-label">告警描述</text>
+            <text class="section-content">{{ currentItem.description }}</text>
+          </view>
           <view class="detail-section">
-            <text class="section-label">播报内容</text>
-            <text class="section-content">{{ currentItem.content || currentItem.description || '暂无内容' }}</text>
+            <text class="section-label">播报正文</text>
+            <text class="section-content">{{ currentItem.broadcastContent || '暂无内容' }}</text>
+          </view>
+          <view class="detail-section" v-if="currentItem.successSpeakerCount != null || currentItem.failSpeakerCount != null">
+            <text class="section-label">推送状态</text>
+            <view class="push-tags">
+              <text class="push-tag success">成功 {{ currentItem.successSpeakerCount || 0 }}</text>
+              <text class="push-tag fail">失败 {{ currentItem.failSpeakerCount || 0 }}</text>
+            </view>
+          </view>
+          <view class="detail-section" v-if="currentItem.targetSpeakerIds">
+            <text class="section-label">推送音箱</text>
+            <text class="section-value">{{ currentItem.targetSpeakerIds }}</text>
           </view>
           <view class="detail-section">
             <text class="section-label">电站</text>
@@ -410,7 +439,7 @@ const playBroadcast = async (item) => {
       innerAudioContext.value.src = item.audioUrl
       innerAudioContext.value.play()
     } else {
-      const content = item.content || item.description
+      const content = item.broadcastContent
       if (content) {
         try {
           if (uni.createInnerAudioContext) {
@@ -873,6 +902,78 @@ const speakByTTS = (text) => {
     font-size: 30rpx;
     color: #262626;
     font-weight: 500;
+  }
+}
+
+.description-block, .broadcast-block {
+  margin-bottom: 16rpx;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  .description-label, .broadcast-label {
+    display: block;
+    font-size: 22rpx;
+    color: #999;
+    margin-bottom: 8rpx;
+  }
+
+  .description-text {
+    font-size: 26rpx;
+    color: #666;
+    line-height: 1.5;
+    background-color: #fafafa;
+    padding: 12rpx 16rpx;
+    border-radius: 8rpx;
+  }
+}
+
+.broadcast-block {
+  .content-text {
+    font-size: 28rpx;
+    color: #262626;
+    line-height: 1.5;
+    background-color: #e6f7ff;
+    padding: 12rpx 16rpx;
+    border-radius: 8rpx;
+  }
+}
+
+.card-push-status {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16rpx;
+  padding: 12rpx 16rpx;
+  background-color: #f9f9f9;
+  border-radius: 8rpx;
+
+  .push-status-label {
+    font-size: 24rpx;
+    color: #999;
+    margin-right: 16rpx;
+  }
+
+  .push-tags {
+    display: flex;
+    gap: 12rpx;
+  }
+
+  .push-tag {
+    padding: 4rpx 16rpx;
+    border-radius: 6rpx;
+    font-size: 22rpx;
+    font-weight: 500;
+
+    &.success {
+      background-color: #f6ffed;
+      color: #52c41a;
+    }
+
+    &.fail {
+      background-color: #fff1f0;
+      color: #ff4d4f;
+    }
   }
 }
 </style>

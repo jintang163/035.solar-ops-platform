@@ -81,3 +81,39 @@ influxdb:
   connect-timeout: 10
   read-timeout: 30
   write-timeout: 10
+
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER:localhost:9876}
+  producer:
+    group: admin-producer-group
+    send-message-timeout: 3000
+    retry-times-when-send-failed: 2
+  consumer:
+    group: admin-consumer-group
+    voice-broadcast:
+      topic: fault-alarm-topic
+      group: voice-broadcast-consumer-group
+
+voice:
+  tts:
+    enabled: false
+    provider: xunfei
+    xunfei-app-id:
+    xunfei-api-key:
+    xunfei-api-secret:
+    xunfei-voice-name: xiaoyan
+    xunfei-speed: 50
+    xunfei-volume: 50
+    audio-save-path: /data/voice-broadcast/audio
+    audio-base-url: http://localhost:8080/admin/voice-broadcast/audio
+  speaker:
+    enabled: false
+    api-url: http://192.168.1.100:8080/api/speaker/broadcast
+    api-key:
+    device-ids:
+      - speaker-001
+      - speaker-002
+    timeout: 10
+    push-method: http
+    mqtt-broker: tcp://localhost:1883
+    mqtt-topic: solar/speaker/broadcast

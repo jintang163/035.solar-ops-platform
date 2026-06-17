@@ -55,9 +55,11 @@ spring:
             threadPriority: 5
 
   rocketmq:
-    name-server: localhost:9876
+    name-server: ${ROCKETMQ_NAME_SERVER:localhost:9876}
     producer:
       group: prediction-producer-group
+      send-message-timeout: 3000
+      retry-times-when-send-failed: 2
     consumer:
       group: prediction-consumer-group
 

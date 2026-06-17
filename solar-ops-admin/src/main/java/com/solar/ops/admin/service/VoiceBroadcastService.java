@@ -5,16 +5,20 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.solar.ops.admin.config.VoiceBroadcastWebSocketHandler;
 import com.solar.ops.admin.entity.Inverter;
 import com.solar.ops.admin.entity.Station;
+import com.solar.ops.admin.entity.VoiceBroadcastConfig;
 import com.solar.ops.admin.entity.VoiceBroadcastRecord;
 import com.solar.ops.admin.mapper.InverterMapper;
 import com.solar.ops.admin.mapper.StationMapper;
+import com.solar.ops.admin.mapper.VoiceBroadcastConfigMapper;
 import com.solar.ops.admin.mapper.VoiceBroadcastRecordMapper;
 import com.solar.ops.admin.vo.VoiceBroadcastConfigVO;
 import com.solar.ops.admin.vo.VoiceBroadcastRecordVO;
+import com.solar.ops.admin.vo.VoiceSpeakerDeviceVO;
 import com.solar.ops.common.page.PageResult;
 import com.solar.ops.workorder.mapper.WorkOrderMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -25,13 +29,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @Service
 public class VoiceBroadcastService {
 
     private static final Logger logger = LoggerFactory.getLogger(VoiceBroadcastService.class);
 
-    private static final Map<String, VoiceBroadcastConfigVO> CONFIG_CACHE = new ConcurrentHashMap<>();
     private static final String DEFAULT_CONFIG_KEY = "default";
 
     private static final Map<String, LocalDateTime> DEDUPLICATION_CACHE = new ConcurrentHashMap<>();
@@ -62,6 +66,9 @@ public class VoiceBroadcastService {
     private VoiceBroadcastRecordMapper voiceBroadcastRecordMapper;
 
     @Resource
+    private VoiceBroadcastConfigMapper voiceBroadcastConfigMapper;
+
+    @Resource
     private StationMapper stationMapper;
 
     @Resource
@@ -73,24 +80,24 @@ public class VoiceBroadcastService {
     @Resource
     private VoiceBroadcastWebSocketHandler voiceBroadcastWebSocketHandler;
 
-    private VoiceBroadcastConfigVO getDefaultConfig() {
-        VoiceBroadcastConfigVO config = new VoiceBroadcastConfigVO();
-        config.setEnabled(true);
-        config.setMinAlarmLevel(3);
-        config.setEnabledTypes(Arrays.asList(1, 2, 3, 4, 5));
-        config.setVolume(80);
-        config.setSpeed(50);
-        config.setVoiceName("xiaoyan");
-        config.setBroadcastStartTime("08:00");
-        config.setBroadcastEndTime("20:00");
-        config.setNightBroadcast(false);
-        return config;
-    }
+    @Autowired(required = false)
+    private TtsService ttsService;
+
+    @Autowired(required = false)
+    private VoiceSpeakerService voiceSpeakerService;
 
     public VoiceBroadcastRecordVO triggerBroadcast(Integer broadcastType, Integer alarmLevel,
                                                     Long stationId, Long inverterId,
                                                     String faultCode, String description,
                                                     Long workOrderId) {
+        return triggerBroadcastToDevices(broadcastType, alarmLevel, stationId, inverterId,
+                faultCode, description, workOrderId, null);
+    }
+
+    public VoiceBroadcastRecordVO triggerBroadcastToDevices(Integer broadcastType, Integer alarmLevel,
+                                                             Long stationId, Long inverterId,
+                                                             String faultCode, String description,
+                                                             Long workOrderId, List<String> deviceIds) {
         VoiceBroadcastConfigVO config = getBroadcastConfig();
 
         if (!config.getEnabled()) {
@@ -122,6 +129,11 @@ public class VoiceBroadcastService {
 
         String broadcastContent = generateBroadcastContent(broadcastType, alarmLevel, stationName, inverterName, faultCode, description);
 
+        String targetSpeakerIds = null;
+        if (deviceIds != null && !deviceIds.isEmpty()) {
+            targetSpeakerIds = String.join(",", deviceIds);
+        }
+
         VoiceBroadcastRecord record = new VoiceBroadcastRecord();
         record.setBroadcastType(broadcastType);
         record.setAlarmLevel(alarmLevel);
@@ -130,10 +142,44 @@ public class VoiceBroadcastService {
         record.setInverterId(inverterId);
         record.setInverterName(inverterName);
         record.setFaultCode(faultCode);
+        record.setDescription(description);
         record.setBroadcastContent(broadcastContent);
+        record.setTargetSpeakerIds(targetSpeakerIds);
         record.setStatus(0);
         record.setWorkOrderId(workOrderId);
         voiceBroadcastRecordMapper.insert(record);
+
+        String audioUrl = null;
+        if (ttsService != null) {
+            try {
+                audioUrl = ttsService.synthesize(broadcastContent, config.getVoiceName(), config.getSpeed(), config.getVolume());
+            } catch (Exception e) {
+                logger.warn("TTS语音合成失败，将使用前端兜底播放", e);
+            }
+        }
+        if (audioUrl != null) {
+            record.setAudioUrl(audioUrl);
+        }
+
+        int successCount = 0;
+        int failCount = 0;
+        String pushResultJson = null;
+        if (voiceSpeakerService != null && audioUrl != null) {
+            try {
+                Map<String, Object> pushResult = voiceSpeakerService.pushWithResult(audioUrl, broadcastContent, deviceIds);
+                successCount = (Integer) pushResult.get("successCount");
+                failCount = (Integer) pushResult.get("failCount");
+                pushResultJson = (String) pushResult.get("details");
+                record.setSuccessSpeakerCount(successCount);
+                record.setFailSpeakerCount(failCount);
+                record.setPushResult(pushResultJson);
+                logger.info("音箱推送完成，成功：{}，失败：{}", successCount, failCount);
+            } catch (Exception e) {
+                logger.warn("推送音箱终端失败", e);
+                record.setSuccessSpeakerCount(0);
+                record.setFailSpeakerCount(deviceIds != null ? deviceIds.size() : 0);
+            }
+        }
 
         VoiceBroadcastRecordVO vo = convertToVO(record);
 
@@ -144,6 +190,9 @@ public class VoiceBroadcastService {
             voiceBroadcastRecordMapper.updateById(record);
             vo.setStatus(1);
             vo.setBroadcastTime(record.getBroadcastTime());
+            vo.setSuccessSpeakerCount(record.getSuccessSpeakerCount());
+            vo.setFailSpeakerCount(record.getFailSpeakerCount());
+            vo.setPushResult(record.getPushResult());
             DEDUPLICATION_CACHE.put(dedupKey, LocalDateTime.now());
             logger.info("语音播报推送成功，recordId={}", record.getId());
         } catch (Exception e) {
@@ -160,9 +209,39 @@ public class VoiceBroadcastService {
         VoiceBroadcastRecord record = new VoiceBroadcastRecord();
         record.setBroadcastType(3);
         record.setAlarmLevel(3);
+        record.setDescription(content != null ? content : "这是一条测试语音播报消息");
         record.setBroadcastContent(content != null ? content : "这是一条测试语音播报消息");
         record.setStatus(0);
         voiceBroadcastRecordMapper.insert(record);
+
+        String audioUrl = null;
+        if (ttsService != null) {
+            try {
+                audioUrl = ttsService.synthesize(record.getBroadcastContent(), "xiaoyan", 50, 80);
+            } catch (Exception e) {
+                logger.warn("测试播报TTS语音合成失败", e);
+            }
+        }
+        if (audioUrl != null) {
+            record.setAudioUrl(audioUrl);
+        }
+
+        int successCount = 0;
+        int failCount = 0;
+        String pushResultJson = null;
+        if (voiceSpeakerService != null && audioUrl != null) {
+            try {
+                Map<String, Object> pushResult = voiceSpeakerService.pushWithResult(audioUrl, record.getBroadcastContent(), null);
+                successCount = (Integer) pushResult.get("successCount");
+                failCount = (Integer) pushResult.get("failCount");
+                pushResultJson = (String) pushResult.get("details");
+                record.setSuccessSpeakerCount(successCount);
+                record.setFailSpeakerCount(failCount);
+                record.setPushResult(pushResultJson);
+            } catch (Exception e) {
+                logger.warn("测试播报推送音箱终端失败", e);
+            }
+        }
 
         VoiceBroadcastRecordVO vo = convertToVO(record);
 
@@ -173,6 +252,9 @@ public class VoiceBroadcastService {
             voiceBroadcastRecordMapper.updateById(record);
             vo.setStatus(1);
             vo.setBroadcastTime(record.getBroadcastTime());
+            vo.setSuccessSpeakerCount(record.getSuccessSpeakerCount());
+            vo.setFailSpeakerCount(record.getFailSpeakerCount());
+            vo.setPushResult(record.getPushResult());
         } catch (Exception e) {
             logger.error("测试语音播报推送失败，recordId={}", record.getId(), e);
             record.setStatus(2);
@@ -189,6 +271,22 @@ public class VoiceBroadcastService {
             throw new RuntimeException("播报记录不存在");
         }
 
+        if (voiceSpeakerService != null && record.getAudioUrl() != null) {
+            try {
+                List<String> deviceIds = null;
+                if (StringUtils.hasText(record.getTargetSpeakerIds())) {
+                    deviceIds = Arrays.asList(record.getTargetSpeakerIds().split(","));
+                }
+                Map<String, Object> pushResult = voiceSpeakerService.pushWithResult(
+                        record.getAudioUrl(), record.getBroadcastContent(), deviceIds);
+                record.setSuccessSpeakerCount((Integer) pushResult.get("successCount"));
+                record.setFailSpeakerCount((Integer) pushResult.get("failCount"));
+                record.setPushResult((String) pushResult.get("details"));
+            } catch (Exception e) {
+                logger.warn("重新播报推送音箱终端失败", e);
+            }
+        }
+
         VoiceBroadcastRecordVO vo = convertToVO(record);
         try {
             voiceBroadcastWebSocketHandler.pushBroadcastMessage(vo);
@@ -201,6 +299,20 @@ public class VoiceBroadcastService {
             record.setStatus(2);
             voiceBroadcastRecordMapper.updateById(record);
         }
+    }
+
+    public List<VoiceSpeakerDeviceVO> getSpeakerDevices() {
+        if (voiceSpeakerService != null) {
+            return voiceSpeakerService.getDeviceList();
+        }
+        return java.util.Collections.emptyList();
+    }
+
+    public boolean testSpeakerDevice(String deviceId) {
+        if (voiceSpeakerService != null) {
+            return voiceSpeakerService.testSpeaker(deviceId);
+        }
+        return false;
     }
 
     public PageResult<VoiceBroadcastRecordVO> getBroadcastHistory(Integer pageNum, Integer pageSize,
@@ -234,35 +346,52 @@ public class VoiceBroadcastService {
     }
 
     public VoiceBroadcastConfigVO getBroadcastConfig() {
-        VoiceBroadcastConfigVO config = CONFIG_CACHE.get(DEFAULT_CONFIG_KEY);
-        if (config == null) {
-            config = getDefaultConfig();
-            CONFIG_CACHE.put(DEFAULT_CONFIG_KEY, config);
+        LambdaQueryWrapper<VoiceBroadcastConfig> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(VoiceBroadcastConfig::getConfigKey, DEFAULT_CONFIG_KEY);
+        wrapper.last("LIMIT 1");
+        VoiceBroadcastConfig config = voiceBroadcastConfigMapper.selectOne(wrapper);
+
+        if (config != null) {
+            return convertConfigToVO(config);
         }
-        return config;
+        return getDefaultConfigVO();
     }
 
-    public void updateBroadcastConfig(VoiceBroadcastConfigVO config) {
-        if (config == null) {
-            config = getDefaultConfig();
+    public void updateBroadcastConfig(VoiceBroadcastConfigVO vo) {
+        if (vo == null) {
+            vo = getDefaultConfigVO();
         }
-        if (config.getEnabled() == null) {
-            config.setEnabled(true);
+        if (vo.getEnabled() == null) {
+            vo.setEnabled(true);
         }
-        if (config.getMinAlarmLevel() == null) {
-            config.setMinAlarmLevel(3);
+        if (vo.getMinAlarmLevel() == null) {
+            vo.setMinAlarmLevel(3);
         }
-        if (config.getVolume() == null) {
-            config.setVolume(80);
+        if (vo.getVolume() == null) {
+            vo.setVolume(80);
         }
-        if (config.getSpeed() == null) {
-            config.setSpeed(50);
+        if (vo.getSpeed() == null) {
+            vo.setSpeed(50);
         }
-        if (config.getVoiceName() == null) {
-            config.setVoiceName("xiaoyan");
+        if (vo.getVoiceName() == null) {
+            vo.setVoiceName("xiaoyan");
         }
-        CONFIG_CACHE.put(DEFAULT_CONFIG_KEY, config);
-        logger.info("语音播报配置已更新：{}", config);
+
+        LambdaQueryWrapper<VoiceBroadcastConfig> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(VoiceBroadcastConfig::getConfigKey, DEFAULT_CONFIG_KEY);
+        wrapper.last("LIMIT 1");
+        VoiceBroadcastConfig existing = voiceBroadcastConfigMapper.selectOne(wrapper);
+
+        VoiceBroadcastConfig config = convertVOToConfig(vo);
+        config.setConfigKey(DEFAULT_CONFIG_KEY);
+
+        if (existing != null) {
+            config.setId(existing.getId());
+            voiceBroadcastConfigMapper.updateById(config);
+        } else {
+            voiceBroadcastConfigMapper.insert(config);
+        }
+        logger.info("语音播报配置已更新：{}", vo);
     }
 
     public String generateBroadcastContent(Integer broadcastType, Integer alarmLevel,
@@ -313,12 +442,72 @@ public class VoiceBroadcastService {
         vo.setInverterId(record.getInverterId());
         vo.setInverterName(record.getInverterName());
         vo.setFaultCode(record.getFaultCode());
+        vo.setDescription(record.getDescription());
         vo.setBroadcastContent(record.getBroadcastContent());
         vo.setAudioUrl(record.getAudioUrl());
+        vo.setTargetSpeakerIds(record.getTargetSpeakerIds());
+        vo.setSuccessSpeakerCount(record.getSuccessSpeakerCount());
+        vo.setFailSpeakerCount(record.getFailSpeakerCount());
+        vo.setPushResult(record.getPushResult());
         vo.setStatus(record.getStatus());
         vo.setBroadcastTime(record.getBroadcastTime());
+        vo.setWorkOrderId(record.getWorkOrderId());
         vo.setCreateTime(record.getCreateTime());
         return vo;
+    }
+
+    private VoiceBroadcastConfigVO getDefaultConfigVO() {
+        VoiceBroadcastConfigVO config = new VoiceBroadcastConfigVO();
+        config.setEnabled(true);
+        config.setMinAlarmLevel(3);
+        config.setEnabledTypes(Arrays.asList(1, 2, 3, 4, 5));
+        config.setVolume(80);
+        config.setSpeed(50);
+        config.setVoiceName("xiaoyan");
+        config.setBroadcastStartTime("08:00");
+        config.setBroadcastEndTime("20:00");
+        config.setNightBroadcast(false);
+        return config;
+    }
+
+    private VoiceBroadcastConfigVO convertConfigToVO(VoiceBroadcastConfig config) {
+        VoiceBroadcastConfigVO vo = new VoiceBroadcastConfigVO();
+        vo.setEnabled(config.getEnabled());
+        vo.setMinAlarmLevel(config.getMinAlarmLevel());
+        if (StringUtils.hasText(config.getEnabledTypes())) {
+            vo.setEnabledTypes(Arrays.stream(config.getEnabledTypes().split(","))
+                    .map(String::trim)
+                    .filter(StringUtils::hasText)
+                    .map(Integer::parseInt)
+                    .collect(Collectors.toList()));
+        } else {
+            vo.setEnabledTypes(Arrays.asList(1, 2, 3, 4, 5));
+        }
+        vo.setVolume(config.getVolume());
+        vo.setSpeed(config.getSpeed());
+        vo.setVoiceName(config.getVoiceName());
+        vo.setBroadcastStartTime(config.getBroadcastStartTime());
+        vo.setBroadcastEndTime(config.getBroadcastEndTime());
+        vo.setNightBroadcast(config.getNightBroadcast());
+        return vo;
+    }
+
+    private VoiceBroadcastConfig convertVOToConfig(VoiceBroadcastConfigVO vo) {
+        VoiceBroadcastConfig config = new VoiceBroadcastConfig();
+        config.setEnabled(vo.getEnabled());
+        config.setMinAlarmLevel(vo.getMinAlarmLevel());
+        if (vo.getEnabledTypes() != null) {
+            config.setEnabledTypes(vo.getEnabledTypes().stream()
+                    .map(String::valueOf)
+                    .collect(Collectors.joining(",")));
+        }
+        config.setVolume(vo.getVolume());
+        config.setSpeed(vo.getSpeed());
+        config.setVoiceName(vo.getVoiceName());
+        config.setBroadcastStartTime(vo.getBroadcastStartTime());
+        config.setBroadcastEndTime(vo.getBroadcastEndTime());
+        config.setNightBroadcast(vo.getNightBroadcast());
+        return config;
     }
 
     private String buildDeduplicationKey(Long inverterId, String faultCode) {

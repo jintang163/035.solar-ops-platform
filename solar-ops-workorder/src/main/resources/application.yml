@@ -48,7 +48,7 @@ spring:
         max-wait: -1ms
 
 rocketmq:
-  name-server: 127.0.0.1:9876
+  name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
   producer:
     group: workorder-producer-group
     send-message-timeout: 3000

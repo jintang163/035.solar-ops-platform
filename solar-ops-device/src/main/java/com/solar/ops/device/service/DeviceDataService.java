@@ -61,17 +61,22 @@ public class DeviceDataService {
     @Autowired(required = false)
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private AlarmDeduplicationHelper alarmDeduplicationHelper;
+
     private final Map<String, InverterDataDTO> realtimeDataMap = new ConcurrentHashMap<>();
     private final Map<String, Long> deviceOnlineTimeMap = new ConcurrentHashMap<>();
 
     private static final long TWO_HOURS_MS = 2 * 60 * 60 * 1000L;
+    private static final long FULL_SCAN_INTERVAL_MS = 5 * 60 * 1000L;
 
     private ScheduledExecutorService scheduler;
 
     @PostConstruct
     public void init() {
-        scheduler = Executors.newScheduledThreadPool(1);
+        scheduler = Executors.newScheduledThreadPool(2);
         scheduler.scheduleAtFixedRate(this::checkDeviceOffline, 60, 60, TimeUnit.SECONDS);
+        scheduler.scheduleAtFixedRate(this::checkAllDeviceOffline, 120, 300, TimeUnit.SECONDS);
     }
 
     public void processDeviceData(InverterDataDTO data) {
@@ -131,6 +136,65 @@ public class DeviceDataService {
             deviceOnlineTimeMap.remove(deviceId);
             realtimeDataMap.remove(deviceId);
             log.info("设备超时离线: deviceId={}", deviceId);
+            triggerOfflineAlarm(deviceId);
+        }
+    }
+
+    private void checkAllDeviceOffline() {
+        log.info("开始全量巡检设备离线状态...");
+        long now = System.currentTimeMillis();
+        long timeout = deviceProperties.getOfflineTimeout() * 1000L;
+
+        try {
+            if (jdbcTemplate == null) {
+                log.warn("JdbcTemplate未配置，跳过全量离线巡检");
+                return;
+            }
+
+            String sql = "SELECT id, device_sn, station_id FROM inverter WHERE status = 1 AND deleted = 0";
+            List<Map<String, Object>> inverters = jdbcTemplate.queryForList(sql);
+
+            int offlineCount = 0;
+            for (Map<String, Object> inv : inverters) {
+                String deviceSn = inv.get("device_sn") != null ? String.valueOf(inv.get("device_sn")) : null;
+                String inverterId = inv.get("id") != null ? String.valueOf(inv.get("id")) : null;
+                String deviceId = deviceSn != null && !deviceSn.isEmpty() ? deviceSn : inverterId;
+
+                if (deviceId == null) {
+                    continue;
+                }
+
+                boolean isOnline = false;
+                Long lastOnline = deviceOnlineTimeMap.get(deviceId);
+                if (lastOnline != null && now - lastOnline <= timeout) {
+                    isOnline = true;
+                }
+
+                if (!isOnline) {
+                    try {
+                        String redisVal = redisTemplate.opsForValue().get(DEVICE_ONLINE_KEY + deviceId);
+                        if (redisVal != null) {
+                            long redisTime = Long.parseLong(redisVal);
+                            if (now - redisTime <= timeout) {
+                                isOnline = true;
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.warn("查询Redis设备在线状态异常: deviceId={}", deviceId, e);
+                    }
+                }
+
+                if (!isOnline) {
+                    if (!deviceOnlineTimeMap.containsKey(deviceId)) {
+                        offlineCount++;
+                        log.info("全量巡检发现设备离线: deviceId={}", deviceId);
+                        triggerOfflineAlarm(deviceId);
+                    }
+                }
+            }
+            log.info("全量巡检完成, 发现离线设备数={}", offlineCount);
+        } catch (Exception e) {
+            log.error("全量巡检设备离线状态异常", e);
         }
     }
 
@@ -154,7 +218,9 @@ public class DeviceDataService {
             }
         }
 
-        if (data.getTemperature() != null && data.getTemperature() > abnormal.getTemperatureMax()) {
+        if (data.getTemperature() != null && data.getTemperature() >= 85) {
+            triggerFireAlarm(data);
+        } else if (data.getTemperature() != null && data.getTemperature() > abnormal.getTemperatureMax()) {
             abnormalReasons.add("温度过高: " + data.getTemperature());
         }
 
@@ -202,6 +268,85 @@ public class DeviceDataService {
             log.info("告警消息已发送至RocketMQ: deviceId={}, topic={}", data.getDeviceId(), FAULT_ALARM_TOPIC);
         } catch (Exception e) {
             log.error("告警消息发送失败: deviceId={}, error={}", data.getDeviceId(), e.getMessage(), e);
+        }
+    }
+
+    private void triggerOfflineAlarm(String deviceId) {
+        String faultCode = "INV_NO_COMM";
+        if (!alarmDeduplicationHelper.allowSend(deviceId, faultCode)) {
+            log.debug("离线告警去重跳过: deviceId={}", deviceId);
+            return;
+        }
+
+        log.info("触发设备离线告警: deviceId={}", deviceId);
+
+        Long stationId = null;
+        Long inverterId = parseLong(deviceId);
+
+        InverterDataDTO realtimeData = realtimeDataMap.get(deviceId);
+        if (realtimeData != null && realtimeData.getStationId() != null) {
+            stationId = parseLong(realtimeData.getStationId());
+        }
+
+        if (stationId == null && jdbcTemplate != null) {
+            try {
+                String sql = "SELECT station_id FROM inverter WHERE (device_sn = ? OR id = ?) AND deleted = 0 LIMIT 1";
+                List<Map<String, Object>> results = jdbcTemplate.queryForList(sql, deviceId, deviceId);
+                if (!results.isEmpty() && results.get(0).get("station_id") != null) {
+                    stationId = Long.valueOf(results.get(0).get("station_id").toString());
+                }
+            } catch (Exception e) {
+                log.warn("查询逆变器stationId失败: deviceId={}, error={}", deviceId, e.getMessage());
+            }
+        }
+
+        Map<String, Object> alarmMessage = new HashMap<>();
+        alarmMessage.put("deviceId", deviceId);
+        alarmMessage.put("stationId", stationId);
+        alarmMessage.put("inverterId", inverterId);
+        alarmMessage.put("faultCode", faultCode);
+        alarmMessage.put("description", "设备通讯中断/离线");
+        alarmMessage.put("alarmType", "fault_code");
+        alarmMessage.put("timestamp", System.currentTimeMillis());
+
+        try {
+            Message<String> message = MessageBuilder
+                    .withPayload(com.alibaba.fastjson.JSON.toJSONString(alarmMessage))
+                    .build();
+            rocketMQTemplate.syncSend(FAULT_ALARM_TOPIC, message);
+            log.info("设备离线告警已发送至RocketMQ: deviceId={}, topic={}", deviceId, FAULT_ALARM_TOPIC);
+        } catch (Exception e) {
+            log.error("设备离线告警发送失败: deviceId={}, error={}", deviceId, e.getMessage(), e);
+        }
+    }
+
+    private void triggerFireAlarm(InverterDataDTO data) {
+        String faultCode = data.getTemperature() >= 95 ? "PANEL_HOT_SPOT" : "INV_OVER_TEMP";
+        if (!alarmDeduplicationHelper.allowSend(data.getDeviceId(), faultCode)) {
+            log.debug("火灾预警去重跳过: deviceId={}", data.getDeviceId());
+            return;
+        }
+
+        log.info("触发火灾预警: deviceId={}, temperature={}", data.getDeviceId(), data.getTemperature());
+
+        Map<String, Object> alarmMessage = new HashMap<>();
+        alarmMessage.put("deviceId", data.getDeviceId());
+        alarmMessage.put("stationId", parseLong(data.getStationId()));
+        alarmMessage.put("inverterId", parseLong(data.getDeviceId()));
+        alarmMessage.put("faultCode", faultCode);
+        alarmMessage.put("description", "设备温度过高，疑似火灾风险：" + data.getTemperature() + "度");
+        alarmMessage.put("alarmType", "fault_code");
+        alarmMessage.put("temperature", data.getTemperature());
+        alarmMessage.put("timestamp", System.currentTimeMillis());
+
+        try {
+            Message<String> message = MessageBuilder
+                    .withPayload(com.alibaba.fastjson.JSON.toJSONString(alarmMessage))
+                    .build();
+            rocketMQTemplate.syncSend(FAULT_ALARM_TOPIC, message);
+            log.info("火灾预警已发送至RocketMQ: deviceId={}, topic={}", data.getDeviceId(), FAULT_ALARM_TOPIC);
+        } catch (Exception e) {
+            log.error("火灾预警发送失败: deviceId={}, error={}", data.getDeviceId(), e.getMessage(), e);
         }
     }
 

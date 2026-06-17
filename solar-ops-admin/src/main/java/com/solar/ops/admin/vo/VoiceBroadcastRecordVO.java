@@ -40,17 +40,35 @@ public class VoiceBroadcastRecordVO {
     @ApiModelProperty(value = "故障码")
     private String faultCode;
 
-    @ApiModelProperty(value = "播报内容文本")
+    @ApiModelProperty(value = "告警描述")
+    private String description;
+
+    @ApiModelProperty(value = "播报正文（TTS语音文本）")
     private String broadcastContent;
 
-    @ApiModelProperty(value = "语音文件URL")
+    @ApiModelProperty(value = "TTS合成语音文件URL")
     private String audioUrl;
+
+    @ApiModelProperty(value = "推送的音箱设备ID列表，逗号分隔")
+    private String targetSpeakerIds;
+
+    @ApiModelProperty(value = "推送成功的音箱数量")
+    private Integer successSpeakerCount;
+
+    @ApiModelProperty(value = "推送失败的音箱数量")
+    private Integer failSpeakerCount;
+
+    @ApiModelProperty(value = "推送结果详情（JSON格式）")
+    private String pushResult;
 
     @ApiModelProperty(value = "播报状态：0-待播报 1-已播报 2-播报失败")
     private Integer status;
 
     @ApiModelProperty(value = "播报时间")
     private LocalDateTime broadcastTime;
+
+    @ApiModelProperty("关联工单ID")
+    private Long workOrderId;
 
     @ApiModelProperty(value = "创建时间")
     private LocalDateTime createTime;

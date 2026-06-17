@@ -16,7 +16,8 @@ import {
   DatePicker,
   Row,
   Col,
-  Statistic
+  Statistic,
+  Divider
 } from 'antd'
 import {
   SoundOutlined,
@@ -33,7 +34,9 @@ import {
   getBroadcastConfig,
   updateBroadcastConfig,
   testBroadcast,
-  retryBroadcast
+  retryBroadcast,
+  getSpeakerDevices,
+  testSpeaker
 } from '../../api/voiceBroadcast'
 import {
   getVoiceBroadcastWebSocket,
@@ -90,8 +93,8 @@ const useVoicePlay = (config = {}) => {
       synthRef.current.cancel()
       const utterance = new SpeechSynthesisUtterance(text)
       utterance.lang = options.lang || 'zh-CN'
-      utterance.volume = options.volume != null ? options.volume : (config.volume != null ? config.volume : 1)
-      utterance.rate = options.rate != null ? options.rate : (config.rate != null ? config.rate : 1)
+      utterance.volume = options.volume != null ? options.volume : (config.volume != null ? config.volume / 100 : 1)
+      utterance.rate = options.rate != null ? options.rate : (config.rate != null ? config.rate / 50 : 1)
       utterance.pitch = options.pitch || 1
 
       utterance.onstart = () => setSpeaking(true)
@@ -127,15 +130,23 @@ const VoiceBroadcastHistory = () => {
   const [broadcastConfig, setBroadcastConfig] = useState({
     enabled: true,
     minAlarmLevel: 3,
-    volume: 0.8,
-    rate: 1,
+    volume: 80,
+    rate: 50,
     startTime: '08:00',
-    endTime: '20:00'
+    endTime: '20:00',
+    ttsProvider: 'xunfei',
+    speakerApiUrl: ''
   })
 
   const [toastVisible, setToastVisible] = useState(false)
   const [currentToast, setCurrentToast] = useState(null)
   const toastTimerRef = useRef(null)
+
+  const [detailModalVisible, setDetailModalVisible] = useState(false)
+  const [currentDetail, setCurrentDetail] = useState(null)
+
+  const [speakerList, setSpeakerList] = useState([])
+  const [speakerLoading, setSpeakerLoading] = useState(false)
 
   const { speak, stop, speaking } = useVoicePlay({
     volume: broadcastConfig.volume,
@@ -162,6 +173,7 @@ const VoiceBroadcastHistory = () => {
   useEffect(() => {
     fetchData(1)
     loadConfig()
+    loadSpeakerDevices()
 
     const ws = getVoiceBroadcastWebSocket()
     ws.connect()
@@ -180,6 +192,23 @@ const VoiceBroadcastHistory = () => {
       }
     }
   }, [fetchData])
+
+  const loadSpeakerDevices = async () => {
+    try {
+      setSpeakerLoading(true)
+      const res = await getSpeakerDevices()
+      setSpeakerList(res.data || [])
+    } catch (e) {
+      console.error('[音箱] 获取音箱列表失败:', e)
+    } finally {
+      setSpeakerLoading(false)
+    }
+  }
+
+  const handleViewDetail = (record) => {
+    setCurrentDetail(record)
+    setDetailModalVisible(true)
+  }
 
   const loadConfig = async () => {
     try {
@@ -217,7 +246,7 @@ const VoiceBroadcastHistory = () => {
 
     notification.open({
       message: `${levelInfo.icon || ''} ${levelInfo.text || '告警'}语音播报`,
-      description: broadcastData.content || broadcastData.description,
+      description: broadcastData.broadcastContent,
       icon: <BellOutlined style={{ color: levelInfo.color || '#faad14' }} />,
       duration: 8,
       placement: 'topRight'
@@ -228,13 +257,13 @@ const VoiceBroadcastHistory = () => {
     if (isWithinBroadcastTime()) {
       if (broadcastData.audioUrl) {
         const audio = new Audio(broadcastData.audioUrl)
-        audio.volume = broadcastConfig.volume
+        audio.volume = (broadcastConfig.volume || 80) / 100
         audio.play().catch(err => {
-          console.error('[语音播报] 音频播放失败，使用TTS兜底:', err)
-          speak(broadcastData.content || broadcastData.description)
+          console.error('[语音播报] 音频播放失败，使用浏览器TTS兜底:', err)
+          speak(broadcastData.broadcastContent)
         })
       } else {
-        speak(broadcastData.content || broadcastData.description)
+        speak(broadcastData.broadcastContent)
       }
     }
   }
@@ -255,13 +284,13 @@ const VoiceBroadcastHistory = () => {
   const handlePlay = (record) => {
     if (record.audioUrl) {
       const audio = new Audio(record.audioUrl)
-      audio.volume = broadcastConfig.volume
+      audio.volume = (broadcastConfig.volume || 80) / 100
       audio.play().catch(err => {
-        console.error('[语音播报] 音频播放失败:', err)
-        speak(record.content || record.description)
+        console.error('[语音播报] 音频播放失败，使用浏览器TTS兜底:', err)
+        speak(record.broadcastContent)
       })
     } else {
-      speak(record.content || record.description)
+      speak(record.broadcastContent)
     }
   }
 
@@ -376,11 +405,56 @@ const VoiceBroadcastHistory = () => {
       render: (text, record) => text || (record.inverterId ? `逆变器#${record.inverterId}` : '-')
     },
     {
-      title: '播报内容',
-      dataIndex: 'content',
-      key: 'content',
+      title: '告警描述',
+      dataIndex: 'description',
+      key: 'description',
+      width: 200,
       ellipsis: true,
-      render: (text, record) => text || record.description || '-'
+      render: (text) => text || '-'
+    },
+    {
+      title: '播报正文',
+      dataIndex: 'broadcastContent',
+      key: 'broadcastContent',
+      width: 250,
+      ellipsis: true,
+      render: (text) => text || '-'
+    },
+    {
+      title: '推送音箱',
+      dataIndex: 'targetSpeakerIds',
+      key: 'targetSpeakerIds',
+      width: 140,
+      render: (text, record) => {
+        const success = record.successSpeakerCount || 0
+        const fail = record.failSpeakerCount || 0
+        if (!text && success === 0 && fail === 0) return '-'
+        return (
+          <Space direction="vertical" size={2}>
+            {text && <span style={{ fontSize: 12, color: '#666' }}>{text}</span>}
+            {(success > 0 || fail > 0) && (
+              <Space size={8}>
+                <Tag color="green" style={{ margin: 0 }}>成功 {success}</Tag>
+                <Tag color="red" style={{ margin: 0 }}>失败 {fail}</Tag>
+              </Space>
+            )}
+          </Space>
+        )
+      }
+    },
+    {
+      title: '成功数量',
+      dataIndex: 'successSpeakerCount',
+      key: 'successSpeakerCount',
+      width: 100,
+      render: (val) => val != null ? <Tag color="green">{val}</Tag> : '-'
+    },
+    {
+      title: '失败数量',
+      dataIndex: 'failSpeakerCount',
+      key: 'failSpeakerCount',
+      width: 100,
+      render: (val) => val != null ? <Tag color="red">{val}</Tag> : '-'
     },
     {
       title: '状态',
@@ -395,7 +469,7 @@ const VoiceBroadcastHistory = () => {
     {
       title: '操作',
       key: 'action',
-      width: 160,
+      width: 200,
       fixed: 'right',
       render: (_, record) => (
         <Space size="small">
@@ -414,6 +488,13 @@ const VoiceBroadcastHistory = () => {
             onClick={() => handleRetry(record)}
           >
             重试
+          </Button>
+          <Button
+            type="link"
+            size="small"
+            onClick={() => handleViewDetail(record)}
+          >
+            详情
           </Button>
         </Space>
       )
@@ -458,8 +539,15 @@ const VoiceBroadcastHistory = () => {
                 {BROADCAST_TYPE_MAP[currentToast.broadcastType]?.text || '告警'} - {ALARM_LEVEL_MAP[currentToast.alarmLevel]?.text || ''}
               </div>
               <div style={{ fontSize: 14, opacity: 0.9 }}>
-                {currentToast.content || currentToast.description}
+                {currentToast.broadcastContent}
               </div>
+              {(currentToast.successSpeakerCount != null || currentToast.failSpeakerCount != null) && (
+                <div style={{ fontSize: 12, opacity: 0.85, marginTop: 4 }}>
+                  设备推送：
+                  <span style={{ marginRight: 8 }}>成功 {currentToast.successSpeakerCount || 0}</span>
+                  <span>失败 {currentToast.failSpeakerCount || 0}</span>
+                </div>
+              )}
             </div>
           </div>
           <Space>
@@ -595,11 +683,34 @@ const VoiceBroadcastHistory = () => {
             </Select>
           </Form.Item>
           <Form.Item name="volume" label="音量">
-            <Slider min={0} max={1} step={0.1} />
+            <Slider min={0} max={100} step={1} />
           </Form.Item>
           <Form.Item name="rate" label="语速">
-            <Slider min={0.5} max={2} step={0.1} />
+            <Slider min={0} max={100} step={1} />
           </Form.Item>
+          <Form.Item name="ttsProvider" label="TTS引擎">
+            <Select>
+              <Option value="xunfei">讯飞</Option>
+              <Option value="none">无（浏览器TTS）</Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="speakerApiUrl" label="播报终端地址">
+            <Input placeholder="如: http://192.168.1.100:8080" />
+          </Form.Item>
+          {broadcastConfig.speakerApiUrl && (
+            <div style={{ marginBottom: 16, padding: '8px 12px', background: '#fafafa', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                display: 'inline-block',
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                backgroundColor: broadcastConfig.speakerOnline ? '#52c41a' : '#d9d9d9'
+              }} />
+              <span style={{ fontSize: 13, color: '#666' }}>
+                播报终端 ({broadcastConfig.ttsProvider || 'xunfei'}) - {broadcastConfig.speakerOnline ? '在线' : '离线'}
+              </span>
+            </div>
+          )}
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
@@ -621,6 +732,121 @@ const VoiceBroadcastHistory = () => {
             </Col>
           </Row>
         </Form>
+      </Modal>
+
+      <Modal
+        title="播报详情"
+        open={detailModalVisible}
+        onCancel={() => setDetailModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setDetailModalVisible(false)}>关闭</Button>,
+          <Button key="play" type="primary" icon={<PlayCircleOutlined />} onClick={() => currentDetail && handlePlay(currentDetail)}>播放语音</Button>
+        ]}
+        width={680}
+      >
+        {currentDetail && (
+          <div>
+            <Row gutter={16} style={{ marginBottom: 16 }}>
+              <Col span={12}>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>播报类型</div>
+                  <Tag color={BROADCAST_TYPE_MAP[currentDetail.broadcastType]?.color || 'default'}>
+                    {BROADCAST_TYPE_MAP[currentDetail.broadcastType]?.icon} {BROADCAST_TYPE_MAP[currentDetail.broadcastType]?.text || '未知'}
+                  </Tag>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>告警级别</div>
+                  <Tag color={ALARM_LEVEL_MAP[currentDetail.alarmLevel]?.color || 'default'}>
+                    {ALARM_LEVEL_MAP[currentDetail.alarmLevel]?.text || '未知'}
+                  </Tag>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>播报状态</div>
+                  <Tag color={STATUS_MAP[currentDetail.status]?.color || 'default'}>
+                    {STATUS_MAP[currentDetail.status]?.text || '未知'}
+                  </Tag>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>电站名称</div>
+                  <div>{currentDetail.stationName || (currentDetail.stationId ? `电站#${currentDetail.stationId}` : '-')}</div>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>逆变器</div>
+                  <div>{currentDetail.inverterName || (currentDetail.inverterId ? `逆变器#${currentDetail.inverterId}` : '-')}</div>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>故障码</div>
+                  <div>{currentDetail.faultCode || '-'}</div>
+                </div>
+              </Col>
+            </Row>
+
+            <Divider style={{ margin: '12px 0' }} />
+
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>告警描述</div>
+              <div style={{ padding: '8px 12px', background: '#fafafa', borderRadius: 6, minHeight: 40 }}>
+                {currentDetail.description || '-'}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>播报正文（TTS语音文本）</div>
+              <div style={{ padding: '8px 12px', background: '#e6f7ff', borderRadius: 6, minHeight: 40 }}>
+                {currentDetail.broadcastContent || '-'}
+              </div>
+            </div>
+
+            <Divider style={{ margin: '12px 0' }} />
+
+            <Row gutter={16}>
+              <Col span={12}>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>推送音箱设备</div>
+                  <div>{currentDetail.targetSpeakerIds || '-'}</div>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>推送成功数量</div>
+                  <Tag color="green">{currentDetail.successSpeakerCount ?? 0}</Tag>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>推送失败数量</div>
+                  <Tag color="red">{currentDetail.failSpeakerCount ?? 0}</Tag>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>语音文件URL</div>
+                  <div style={{ wordBreak: 'break-all' }}>{currentDetail.audioUrl || '-'}</div>
+                </div>
+              </Col>
+            </Row>
+
+            {currentDetail.pushResult && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>推送结果详情</div>
+                <pre style={{ padding: '8px 12px', background: '#f5f5f5', borderRadius: 6, maxHeight: 150, overflow: 'auto', fontSize: 12 }}>
+                  {typeof currentDetail.pushResult === 'string' ? currentDetail.pushResult : JSON.stringify(currentDetail.pushResult, null, 2)}
+                </pre>
+              </div>
+            )}
+
+            <Divider style={{ margin: '12px 0' }} />
+
+            <Row gutter={16}>
+              <Col span={12}>
+                <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>创建时间</div>
+                <div>{currentDetail.createTime || '-'}</div>
+              </Col>
+              <Col span={12}>
+                <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>实际播报时间</div>
+                <div>{currentDetail.broadcastTime || '-'}</div>
+              </Col>
+            </Row>
+          </div>
+        )}
       </Modal>
     </div>
   )

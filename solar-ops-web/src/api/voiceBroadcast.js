@@ -37,3 +37,18 @@ export function retryBroadcast(id) {
     method: 'put'
   })
 }
+
+export function getSpeakerDevices() {
+  return request({
+    url: '/api/voice-broadcast/speakers',
+    method: 'get'
+  })
+}
+
+export function testSpeaker(deviceId) {
+  return request({
+    url: '/api/voice-broadcast/speakers/test',
+    method: 'post',
+    params: { deviceId }
+  })
+}
