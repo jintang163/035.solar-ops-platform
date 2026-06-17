@@ -122,4 +122,13 @@ public class GridDispatchCommandVO {
 
     @ApiModelProperty("关联曲线数据（详情页用）")
     private List<GridDispatchCurveDataVO> curveDataList;
+
+    @ApiModelProperty("协议指令ID")
+    private String protocolCommandId;
+
+    @ApiModelProperty("ASDU地址")
+    private Integer asduAddress;
+
+    @ApiModelProperty("原始报文")
+    private String rawMessage;
 }

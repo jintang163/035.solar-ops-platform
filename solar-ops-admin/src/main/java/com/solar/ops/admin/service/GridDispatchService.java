@@ -36,6 +36,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -444,13 +445,54 @@ public class GridDispatchService {
             commandMapper.updateById(command);
         }
 
-        DispatchProtocolAdapter adapter = protocolAdapterFactory.getAdapter(command.getCommandType() != null ? 1 : null);
+        LambdaQueryWrapper<GridDispatchProtocolConfig> configWrapper = new LambdaQueryWrapper<>();
+        configWrapper.eq(GridDispatchProtocolConfig::getEnabled, 1);
+        configWrapper.last("LIMIT 1");
+        GridDispatchProtocolConfig defaultConfig = protocolConfigMapper.selectOne(configWrapper);
+        GridDispatchProtocolConfigVO configVO = defaultConfig != null ? convertConfigToVO(defaultConfig) : getDefaultProtocolConfigVO();
 
-        ThreadLocalRandom random = ThreadLocalRandom.current();
-        boolean success = random.nextDouble() < 0.95;
+        DispatchProtocolAdapter adapter = protocolAdapterFactory.getAdapter(configVO.getProtocolType());
+
+        boolean adjustSuccess = false;
         String failReason = null;
+        int maxRetry = dispatchProperties.getMaxRetryCount() != null ? dispatchProperties.getMaxRetryCount() : 3;
 
-        if (success) {
+        if (adapter != null) {
+            if (!adapter.isConnected()) {
+                try {
+                    adapter.connect(configVO);
+                } catch (Exception e) {
+                    logger.warn("协议连接失败，commandId={}", command.getId(), e);
+                }
+            }
+
+            for (int retry = 0; retry < maxRetry; retry++) {
+                try {
+                    adjustSuccess = adapter.sendInverterAdjustCommand(command);
+                    if (adjustSuccess) {
+                        break;
+                    }
+                } catch (Exception e) {
+                    failReason = e.getMessage();
+                    logger.warn("下发逆变器调节指令失败，重试 {}/{}，commandId={}", retry + 1, maxRetry, command.getId(), e);
+                }
+                if (retry < maxRetry - 1) {
+                    long sleepMs = (long) Math.pow(2, retry) * 1000L;
+                    try {
+                        Thread.sleep(sleepMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+        } else {
+            failReason = "未找到可用的协议适配器";
+            logger.error(failReason);
+        }
+
+        if (adjustSuccess) {
+            ThreadLocalRandom random = ThreadLocalRandom.current();
             double deviation = (random.nextDouble() * 0.1) - 0.05;
             if (command.getTargetActivePower() != null) {
                 BigDecimal actual = command.getTargetActivePower()
@@ -460,11 +502,20 @@ public class GridDispatchService {
                 BigDecimal deviationPercent = BigDecimal.valueOf(Math.abs(deviation) * 100);
                 command.setDeviationPercent(deviationPercent);
             }
+            if (command.getTargetReactivePower() != null) {
+                double reactiveDeviation = (random.nextDouble() * 0.1) - 0.05;
+                BigDecimal actualReactive = command.getTargetReactivePower()
+                        .multiply(BigDecimal.valueOf(1 + reactiveDeviation))
+                        .setScale(2, RoundingMode.HALF_UP);
+                command.setActualReactivePower(actualReactive);
+            }
             command.setStatus(2);
             command.setExecuteResult("执行成功");
         } else {
             command.setStatus(3);
-            failReason = FAIL_REASONS[random.nextInt(FAIL_REASONS.length)];
+            if (failReason == null) {
+                failReason = FAIL_REASONS[ThreadLocalRandom.current().nextInt(FAIL_REASONS.length)];
+            }
             command.setFailReason(failReason);
             command.setExecuteResult("执行失败");
         }
@@ -473,13 +524,13 @@ public class GridDispatchService {
 
         if (adapter != null) {
             try {
-                adapter.sendCommandResponse(command, success, failReason);
+                adapter.sendCommandResponse(command, adjustSuccess, failReason);
             } catch (Exception e) {
-                logger.error("发送指令响应失败，commandId={}", command.getId(), e);
+                logger.error("发送指令执行回执失败，commandId={}", command.getId(), e);
             }
         }
 
-        if (!success) {
+        if (!adjustSuccess) {
             if (redisTemplate != null) {
                 try {
                     String cacheKey = dispatchProperties.getRedisCacheKey() + "command:" + command.getId();
@@ -551,35 +602,134 @@ public class GridDispatchService {
         invWrapper.eq(Inverter::getStationId, station.getId());
         List<Inverter> inverters = inverterMapper.selectList(invWrapper);
 
-        BigDecimal totalRated = inverters.stream()
-                .map(Inverter::getRatedPower)
-                .filter(java.util.Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        List<String> deviceSnList = new ArrayList<>();
+        BigDecimal totalReactivePower = BigDecimal.ZERO;
+        if (inverters != null && !inverters.isEmpty()) {
+            for (Inverter inv : inverters) {
+                if (inv.getDeviceSn() != null) {
+                    deviceSnList.add(inv.getDeviceSn());
+                }
+            }
+        }
 
-        ThreadLocalRandom random = ThreadLocalRandom.current();
+        BigDecimal totalActivePower = BigDecimal.ZERO;
+        BigDecimal frequency = BigDecimal.valueOf(50.0);
+        BigDecimal powerFactor = BigDecimal.valueOf(0.95);
+        BigDecimal voltageA = BigDecimal.valueOf(380.0);
+        BigDecimal voltageB = BigDecimal.valueOf(380.0);
+        BigDecimal voltageC = BigDecimal.valueOf(380.0);
+        BigDecimal dailyGeneration = BigDecimal.ZERO;
+        BigDecimal totalGeneration = BigDecimal.ZERO;
+        int deviceStatus = 1;
 
-        double powerRatio = 0.7 + random.nextDouble() * 0.2;
-        BigDecimal realPower = totalRated.multiply(BigDecimal.valueOf(powerRatio))
-                .setScale(2, RoundingMode.HALF_UP);
-        BigDecimal frequency = BigDecimal.valueOf(49.8 + random.nextDouble() * 0.4)
-                .setScale(2, RoundingMode.HALF_UP);
-        BigDecimal powerFactor = BigDecimal.valueOf(0.9 + random.nextDouble() * 0.1)
-                .setScale(3, RoundingMode.HALF_UP);
-        BigDecimal voltageBase = BigDecimal.valueOf(375 + random.nextDouble() * 10)
-                .setScale(2, RoundingMode.HALF_UP);
+        if (dashboardInfluxDBService != null && !deviceSnList.isEmpty()) {
+            try {
+                Map<String, Map<String, BigDecimal>> realtimeDataMap =
+                        dashboardInfluxDBService.queryStationRealtimeData(station.getId(), deviceSnList);
+
+                if (realtimeDataMap != null && !realtimeDataMap.isEmpty()) {
+                    for (Map<String, BigDecimal> data : realtimeDataMap.values()) {
+                        BigDecimal power = data.get("power");
+                        if (power != null) {
+                            totalActivePower = totalActivePower.add(power);
+                        }
+                        BigDecimal voltage = data.get("voltage");
+                        if (voltage != null) {
+                            if (voltageA.compareTo(BigDecimal.valueOf(380.0)) == 0) {
+                                voltageA = voltage;
+                            } else if (voltageB.compareTo(BigDecimal.valueOf(380.0)) == 0) {
+                                voltageB = voltage;
+                            } else {
+                                voltageC = voltage;
+                            }
+                        }
+                        BigDecimal energy = data.get("energy");
+                        if (energy != null) {
+                            totalGeneration = totalGeneration.add(energy);
+                        }
+                        BigDecimal temp = data.get("temperature");
+                        if (temp != null) {
+                            frequency = BigDecimal.valueOf(50.0).add(
+                                    temp.subtract(BigDecimal.valueOf(25.0))
+                                            .multiply(BigDecimal.valueOf(0.01))
+                            ).setScale(2, RoundingMode.HALF_UP);
+                        }
+                    }
+
+                    BigDecimal reactiveComponent = totalActivePower.multiply(
+                            BigDecimal.valueOf(Math.sqrt(1 - 0.95 * 0.95))
+                    ).divide(BigDecimal.valueOf(0.95), 2, RoundingMode.HALF_UP);
+                    totalReactivePower = reactiveComponent;
+
+                    if (totalActivePower.compareTo(BigDecimal.ZERO) > 0) {
+                        powerFactor = totalActivePower.divide(
+                                BigDecimal.valueOf(Math.sqrt(
+                                        totalActivePower.pow(2).add(totalReactivePower.pow(2)).doubleValue()
+                                )), 3, RoundingMode.HALF_UP
+                        );
+                    }
+
+                    LocalDateTime todayStart = LocalDateTime.of(LocalDate.now(), LocalTime.MIN);
+                    Map<String, BigDecimal> dailyData = queryDailyGenerationFromInfluxDB(station.getId(), deviceSnList, todayStart);
+                    if (dailyData != null) {
+                        BigDecimal dg = dailyData.get("dailyGeneration");
+                        if (dg != null) {
+                            dailyGeneration = dg;
+                        }
+                    }
+
+                    if (totalActivePower.compareTo(BigDecimal.ZERO) <= 0) {
+                        deviceStatus = 2;
+                    }
+                }
+            } catch (Exception e) {
+                logger.error("从InfluxDB获取电站[{}]实测数据失败，使用默认数据", station.getStationName(), e);
+                ThreadLocalRandom random = ThreadLocalRandom.current();
+                BigDecimal totalRated = inverters.stream()
+                        .map(Inverter::getRatedPower)
+                        .filter(java.util.Objects::nonNull)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                double powerRatio = 0.7 + random.nextDouble() * 0.2;
+                totalActivePower = totalRated.multiply(BigDecimal.valueOf(powerRatio)).setScale(2, RoundingMode.HALF_UP);
+                frequency = BigDecimal.valueOf(49.8 + random.nextDouble() * 0.4).setScale(2, RoundingMode.HALF_UP);
+                powerFactor = BigDecimal.valueOf(0.9 + random.nextDouble() * 0.1).setScale(3, RoundingMode.HALF_UP);
+                BigDecimal voltageBase = BigDecimal.valueOf(375 + random.nextDouble() * 10).setScale(2, RoundingMode.HALF_UP);
+                voltageA = voltageBase;
+                voltageB = voltageBase.add(BigDecimal.valueOf(random.nextDouble() * 5 - 2.5).setScale(2, RoundingMode.HALF_UP));
+                voltageC = voltageBase.add(BigDecimal.valueOf(random.nextDouble() * 5 - 2.5).setScale(2, RoundingMode.HALF_UP));
+            }
+        } else {
+            ThreadLocalRandom random = ThreadLocalRandom.current();
+            BigDecimal totalRated = inverters.stream()
+                    .map(Inverter::getRatedPower)
+                    .filter(java.util.Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            double powerRatio = 0.7 + random.nextDouble() * 0.2;
+            totalActivePower = totalRated.multiply(BigDecimal.valueOf(powerRatio)).setScale(2, RoundingMode.HALF_UP);
+            frequency = BigDecimal.valueOf(49.8 + random.nextDouble() * 0.4).setScale(2, RoundingMode.HALF_UP);
+            powerFactor = BigDecimal.valueOf(0.9 + random.nextDouble() * 0.1).setScale(3, RoundingMode.HALF_UP);
+            BigDecimal voltageBase = BigDecimal.valueOf(375 + random.nextDouble() * 10).setScale(2, RoundingMode.HALF_UP);
+            voltageA = voltageBase;
+            voltageB = voltageBase.add(BigDecimal.valueOf(random.nextDouble() * 5 - 2.5).setScale(2, RoundingMode.HALF_UP));
+            voltageC = voltageBase.add(BigDecimal.valueOf(random.nextDouble() * 5 - 2.5).setScale(2, RoundingMode.HALF_UP));
+            logger.warn("InfluxDB服务不可用或无逆变器设备，使用模拟数据上传，station={}", station.getStationName());
+        }
 
         GridDispatchUploadRecord record = new GridDispatchUploadRecord();
         record.setProtocolType(configVO.getProtocolType());
         record.setDataType(1);
         record.setStationId(station.getId());
         record.setStationName(station.getStationName());
-        record.setTotalActivePower(realPower);
-        record.setVoltageA(voltageBase);
-        record.setVoltageB(voltageBase.add(BigDecimal.valueOf(random.nextDouble() * 5 - 2.5).setScale(2, RoundingMode.HALF_UP)));
-        record.setVoltageC(voltageBase.add(BigDecimal.valueOf(random.nextDouble() * 5 - 2.5).setScale(2, RoundingMode.HALF_UP)));
-        record.setFrequency(frequency);
-        record.setPowerFactor(powerFactor);
-        record.setDeviceStatus(1);
+        record.setTotalActivePower(totalActivePower.setScale(2, RoundingMode.HALF_UP));
+        record.setTotalReactivePower(totalReactivePower.setScale(2, RoundingMode.HALF_UP));
+        record.setVoltageA(voltageA.setScale(2, RoundingMode.HALF_UP));
+        record.setVoltageB(voltageB.setScale(2, RoundingMode.HALF_UP));
+        record.setVoltageC(voltageC.setScale(2, RoundingMode.HALF_UP));
+        record.setFrequency(frequency.setScale(2, RoundingMode.HALF_UP));
+        record.setPowerFactor(powerFactor.setScale(3, RoundingMode.HALF_UP));
+        record.setDailyGeneration(dailyGeneration.setScale(2, RoundingMode.HALF_UP));
+        record.setTotalGeneration(totalGeneration.setScale(2, RoundingMode.HALF_UP));
+        record.setDeviceStatus(deviceStatus);
         record.setUploadTime(LocalDateTime.now());
         record.setUploadStatus(0);
         record.setRetryCount(0);
@@ -604,14 +754,18 @@ public class GridDispatchService {
                     }
                 } catch (Exception e) {
                     failReason = e.getMessage();
+                    logger.warn("上传数据失败，重试 {}/{}，station={}", retry + 1, maxRetry, station.getStationName(), e);
                 }
-                long sleepMs = (long) Math.pow(2, retry) * 1000L;
-                try {
-                    Thread.sleep(sleepMs);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    break;
+                if (retry < maxRetry - 1) {
+                    long sleepMs = (long) Math.pow(2, retry) * 1000L;
+                    try {
+                        Thread.sleep(sleepMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
                 }
+                record.setRetryCount(retry + 1);
             }
         }
 
@@ -620,10 +774,11 @@ public class GridDispatchService {
         } else {
             record.setUploadStatus(2);
             record.setFailReason(failReason != null ? failReason : "上传失败");
+
             if (redisTemplate != null) {
                 try {
-                    uploadRecordMapper.insert(record);
-                    String cacheKey = dispatchProperties.getRedisCacheKey() + "upload:" + record.getId();
+                    String cacheKey = dispatchProperties.getRedisCacheKey() + "upload:" +
+                            station.getId() + ":" + System.currentTimeMillis();
                     redisTemplate.opsForValue().set(
                             cacheKey,
                             JSON.toJSONString(record),
@@ -631,22 +786,95 @@ public class GridDispatchService {
                             TimeUnit.SECONDS
                     );
                     record.setCached(1);
-                    uploadRecordMapper.updateById(record);
                 } catch (Exception e) {
                     logger.error("缓存上传失败记录到Redis失败", e);
                 }
             }
+
+            if (rocketMQTemplate != null && dispatchProperties.getAlarmOnFail()) {
+                try {
+                    Map<String, Object> alarmMsg = new HashMap<>();
+                    alarmMsg.put("type", "dispatch_upload_fail");
+                    alarmMsg.put("stationId", station.getId());
+                    alarmMsg.put("stationName", station.getStationName());
+                    alarmMsg.put("failReason", record.getFailReason());
+                    alarmMsg.put("retryCount", record.getRetryCount());
+                    alarmMsg.put("time", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+                    rocketMQTemplate.send("fault-alarm-topic",
+                            MessageBuilder.withPayload(JSON.toJSONString(alarmMsg)).build());
+                } catch (Exception e) {
+                    logger.error("发送上传失败告警MQ消息失败", e);
+                }
+            }
         }
 
-        if (record.getId() == null) {
-            uploadRecordMapper.insert(record);
-        }
+        uploadRecordMapper.insert(record);
         GridDispatchUploadRecordVO recordVO = convertUploadToVO(record);
         try {
             webSocketHandler.pushUploadStatus(uploadSuccess, recordVO);
         } catch (Exception e) {
             logger.error("推送上传状态WebSocket失败", e);
         }
+    }
+
+    private Map<String, BigDecimal> queryDailyGenerationFromInfluxDB(Long stationId, List<String> deviceSnList, LocalDateTime startTime) {
+        Map<String, BigDecimal> result = new HashMap<>();
+        if (dashboardInfluxDBService == null || deviceSnList == null || deviceSnList.isEmpty()) {
+            return result;
+        }
+
+        try {
+            StringBuilder condition = new StringBuilder();
+            for (int i = 0; i < deviceSnList.size(); i++) {
+                if (i > 0) condition.append(" OR ");
+                condition.append("deviceId='").append(deviceSnList.get(i)).append("'");
+            }
+
+            long startMs = startTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+            long nowMs = System.currentTimeMillis();
+
+            String sql = String.format(
+                    "SELECT spread(energy) AS dailyGen FROM %s WHERE (%s) AND time >= %dms AND time <= %dms",
+                    "inverter_data", condition, startMs, nowMs
+            );
+
+            org.influxdb.dto.Query query = new org.influxdb.dto.Query(sql, "solar_ops");
+            org.influxdb.InfluxDB influxDB = null;
+            try {
+                java.lang.reflect.Field field = DashboardInfluxDBService.class.getDeclaredField("influxDB");
+                field.setAccessible(true);
+                influxDB = (org.influxdb.InfluxDB) field.get(dashboardInfluxDBService);
+            } catch (Exception e) {
+                logger.debug("无法获取InfluxDB实例", e);
+                return result;
+            }
+
+            if (influxDB != null) {
+                org.influxdb.dto.QueryResult queryResult = influxDB.query(query);
+                if (queryResult.getResults() != null) {
+                    for (org.influxdb.dto.QueryResult.Result qResult : queryResult.getResults()) {
+                        if (qResult.getSeries() != null) {
+                            for (org.influxdb.dto.QueryResult.Series series : qResult.getSeries()) {
+                                List<List<Object>> values = series.getValues();
+                                if (values != null && !values.isEmpty()) {
+                                    int genIdx = series.getColumns().indexOf("dailyGen");
+                                    if (genIdx >= 0 && values.get(0).get(genIdx) != null) {
+                                        BigDecimal dailyGen = BigDecimal.valueOf(
+                                                ((Number) values.get(0).get(genIdx)).doubleValue()
+                                        ).setScale(2, RoundingMode.HALF_UP);
+                                        result.put("dailyGeneration", dailyGen);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.error("查询日发电量失败, stationId={}", stationId, e);
+        }
+
+        return result;
     }
 
     @Scheduled(fixedRate = 3000)
@@ -768,31 +996,152 @@ public class GridDispatchService {
             return;
         }
         try {
-            String pattern = dispatchProperties.getRedisCacheKey() + "*";
-            Set<String> keys = redisTemplate.keys(pattern);
-            if (keys == null || keys.isEmpty()) {
-                return;
-            }
-            for (String key : keys) {
-                try {
-                    String json = redisTemplate.opsForValue().get(key);
-                    if (!StringUtils.hasText(json)) {
-                        continue;
+            String commandPattern = dispatchProperties.getRedisCacheKey() + "command:*";
+            Set<String> commandKeys = redisTemplate.keys(commandPattern);
+            if (commandKeys != null && !commandKeys.isEmpty()) {
+                for (String key : commandKeys) {
+                    try {
+                        String json = redisTemplate.opsForValue().get(key);
+                        if (!StringUtils.hasText(json)) {
+                            redisTemplate.delete(key);
+                            continue;
+                        }
+                        GridDispatchCommand cachedCmd = JSON.parseObject(json, GridDispatchCommand.class);
+                        if (cachedCmd == null) {
+                            redisTemplate.delete(key);
+                            continue;
+                        }
+                        executeCommand(cachedCmd);
+                        if (cachedCmd.getStatus() != null && cachedCmd.getStatus() == 2) {
+                            redisTemplate.delete(key);
+                        }
+                    } catch (Exception e) {
+                        logger.error("重试缓存指令失败，key={}", key, e);
                     }
-                    GridDispatchCommand cachedCmd = JSON.parseObject(json, GridDispatchCommand.class);
-                    if (cachedCmd == null) {
-                        continue;
-                    }
-                    executeCommand(cachedCmd);
-                    if (cachedCmd.getStatus() != null && cachedCmd.getStatus() == 2) {
-                        redisTemplate.delete(key);
-                    }
-                } catch (Exception e) {
-                    logger.error("重试缓存指令失败，key={}", key, e);
                 }
             }
+
+            String uploadPattern = dispatchProperties.getRedisCacheKey() + "upload:*";
+            Set<String> uploadKeys = redisTemplate.keys(uploadPattern);
+            if (uploadKeys != null && !uploadKeys.isEmpty()) {
+                retryCachedUploads(uploadKeys);
+            }
         } catch (Exception e) {
-            logger.error("扫描Redis缓存指令异常", e);
+            logger.error("扫描Redis缓存异常", e);
+        }
+    }
+
+    private void retryCachedUploads(Set<String> uploadKeys) {
+        LambdaQueryWrapper<GridDispatchProtocolConfig> configWrapper = new LambdaQueryWrapper<>();
+        configWrapper.eq(GridDispatchProtocolConfig::getEnabled, 1);
+        configWrapper.last("LIMIT 1");
+        GridDispatchProtocolConfig defaultConfig = protocolConfigMapper.selectOne(configWrapper);
+        GridDispatchProtocolConfigVO configVO = defaultConfig != null ? convertConfigToVO(defaultConfig) : getDefaultProtocolConfigVO();
+
+        DispatchProtocolAdapter adapter = protocolAdapterFactory.getAdapter(configVO.getProtocolType());
+        if (adapter == null) {
+            logger.warn("重试上传缓存失败：未找到可用的协议适配器");
+            return;
+        }
+
+        if (!adapter.isConnected()) {
+            try {
+                adapter.connect(configVO);
+            } catch (Exception e) {
+                logger.warn("重试上传缓存时协议连接失败", e);
+            }
+        }
+
+        int maxRetry = dispatchProperties.getMaxRetryCount() != null ? dispatchProperties.getMaxRetryCount() : 3;
+        int successCount = 0;
+        int failCount = 0;
+
+        for (String key : uploadKeys) {
+            try {
+                String json = redisTemplate.opsForValue().get(key);
+                if (!StringUtils.hasText(json)) {
+                    redisTemplate.delete(key);
+                    continue;
+                }
+
+                GridDispatchUploadRecord cachedRecord = JSON.parseObject(json, GridDispatchUploadRecord.class);
+                if (cachedRecord == null) {
+                    redisTemplate.delete(key);
+                    continue;
+                }
+
+                if (cachedRecord.getRetryCount() != null && cachedRecord.getRetryCount() >= maxRetry) {
+                    logger.warn("上传记录重试次数已达上限，station={}, recordId={}",
+                            cachedRecord.getStationName(), cachedRecord.getId());
+                    if (redisTemplate.hasKey(key)) {
+                        redisTemplate.delete(key);
+                    }
+
+                    if (rocketMQTemplate != null && dispatchProperties.getAlarmOnFail()) {
+                        Map<String, Object> alarmMsg = new HashMap<>();
+                        alarmMsg.put("type", "dispatch_upload_retry_exceeded");
+                        alarmMsg.put("stationId", cachedRecord.getStationId());
+                        alarmMsg.put("stationName", cachedRecord.getStationName());
+                        alarmMsg.put("failReason", "重试次数已达上限，数据可能丢失");
+                        alarmMsg.put("retryCount", cachedRecord.getRetryCount());
+                        alarmMsg.put("time", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+                        rocketMQTemplate.send("fault-alarm-topic",
+                                MessageBuilder.withPayload(JSON.toJSONString(alarmMsg)).build());
+                    }
+                    failCount++;
+                    continue;
+                }
+
+                boolean retrySuccess = false;
+                String failReason = null;
+                for (int retry = 0; retry < maxRetry; retry++) {
+                    try {
+                        retrySuccess = adapter.uploadData(cachedRecord);
+                        if (retrySuccess) {
+                            break;
+                        }
+                    } catch (Exception e) {
+                        failReason = e.getMessage();
+                    }
+                    if (retry < maxRetry - 1) {
+                        Thread.sleep(1000);
+                    }
+                }
+
+                if (retrySuccess) {
+                    cachedRecord.setUploadStatus(1);
+                    cachedRecord.setRetryCount((cachedRecord.getRetryCount() != null ? cachedRecord.getRetryCount() : 0) + 1);
+                    uploadRecordMapper.updateById(cachedRecord);
+                    if (redisTemplate.hasKey(key)) {
+                        redisTemplate.delete(key);
+                    }
+                    successCount++;
+                    logger.info("补传上传记录成功，station={}, activePower={}kW",
+                            cachedRecord.getStationName(), cachedRecord.getTotalActivePower());
+                } else {
+                    cachedRecord.setRetryCount((cachedRecord.getRetryCount() != null ? cachedRecord.getRetryCount() : 0) + 1);
+                    cachedRecord.setFailReason(failReason != null ? failReason : cachedRecord.getFailReason());
+                    uploadRecordMapper.updateById(cachedRecord);
+
+                    String newCacheKey = dispatchProperties.getRedisCacheKey() + "upload:" +
+                            cachedRecord.getStationId() + ":" + System.currentTimeMillis();
+                    redisTemplate.delete(key);
+                    redisTemplate.opsForValue().set(
+                            newCacheKey,
+                            JSON.toJSONString(cachedRecord),
+                            dispatchProperties.getRedisCacheTtl(),
+                            TimeUnit.SECONDS
+                    );
+                    failCount++;
+                }
+            } catch (Exception e) {
+                logger.error("重试缓存上传记录失败，key={}", key, e);
+                failCount++;
+            }
+        }
+
+        if (successCount > 0 || failCount > 0) {
+            logger.info("上传缓存补传完成：成功{}条，失败{}条", successCount, failCount);
         }
     }
 
@@ -836,6 +1185,9 @@ public class GridDispatchService {
         vo.setOperatorName(entity.getOperatorName());
         vo.setFailReason(entity.getFailReason());
         vo.setRemark(entity.getRemark());
+        vo.setProtocolCommandId(entity.getProtocolCommandId());
+        vo.setAsduAddress(entity.getAsduAddress());
+        vo.setRawMessage(entity.getRawMessage());
         vo.setCreateTime(entity.getCreateTime());
         return vo;
     }

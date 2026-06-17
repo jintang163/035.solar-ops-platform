@@ -103,4 +103,13 @@ public class GridDispatchCommand extends BaseEntity {
 
     @ApiModelProperty("备注")
     private String remark;
+
+    @ApiModelProperty("协议指令ID")
+    private String protocolCommandId;
+
+    @ApiModelProperty("ASDU地址")
+    private Integer asduAddress;
+
+    @ApiModelProperty("原始报文")
+    private String rawMessage;
 }

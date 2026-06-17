@@ -21,4 +21,6 @@ public interface DispatchProtocolAdapter {
     List<GridDispatchCommand> receiveCommands();
 
     boolean sendCommandResponse(GridDispatchCommand command, boolean success, String reason);
+
+    boolean sendInverterAdjustCommand(GridDispatchCommand command);
 }

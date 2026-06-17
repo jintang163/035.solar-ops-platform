@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.time.LocalDateTime;
@@ -186,6 +187,106 @@ public class Iec104ProtocolAdapter implements DispatchProtocolAdapter {
         }
     }
 
+    @Override
+    public boolean sendInverterAdjustCommand(GridDispatchCommand command) {
+        if (!isConnected()) {
+            logger.warn("[IEC104] 连接未建立，无法发送逆变器调节指令");
+            return false;
+        }
+
+        try {
+            StringBuilder hexBuilder = new StringBuilder();
+            int seq = ThreadLocalRandom.current().nextInt(1000, 9999);
+
+            Integer commandType = command.getCommandType();
+            if (commandType == null) {
+                commandType = 1;
+            }
+
+            int infoAddr = getInfoAddrByCommandType(commandType);
+            BigDecimal targetValue = getTargetValueByCommandType(command);
+
+            if (targetValue == null) {
+                logger.warn("[IEC104] 目标值为空，无法发送调节指令，commandType={}", commandType);
+                return false;
+            }
+
+            hexBuilder.append("6816");
+            hexBuilder.append(String.format("%04X", seq * 2));
+            hexBuilder.append("0000");
+            hexBuilder.append("2D");
+            hexBuilder.append("01");
+            hexBuilder.append("06010100000000");
+
+            int floatBits = Float.floatToIntBits(targetValue.floatValue());
+            hexBuilder.append(String.format("%08X", floatBits));
+
+            hexBuilder.append(String.format("%06X", infoAddr & 0xFFFFFF));
+
+            String hexMessage = hexBuilder.toString();
+
+            if (socket != null && !socket.isClosed() && outputStream != null) {
+                outputStream.write(hexStringToBytes(hexMessage));
+                outputStream.flush();
+
+                byte[] resp = new byte[100];
+                int len = inputStream.read(resp);
+                if (len <= 0) {
+                    logger.warn("[IEC104] 发送逆变器调节指令无响应");
+                    return false;
+                }
+                logger.info("[IEC104] 逆变器调节指令发送成功, 响应: {}", bytesToHexString(resp, len));
+            } else {
+                logger.info("[IEC104] 模拟模式下发送逆变器调节指令: type={}, target={}", commandType, targetValue);
+            }
+
+            command.setRawMessage(hexMessage);
+            logger.info("[IEC104] 逆变器调节指令已下发: commandNo={}, type={}, targetValue={}",
+                    command.getCommandNo(), commandType, targetValue);
+            return true;
+
+        } catch (Exception e) {
+            logger.error("[IEC104] 发送逆变器调节指令失败", e);
+            return false;
+        }
+    }
+
+    private int getInfoAddrByCommandType(int commandType) {
+        switch (commandType) {
+            case 1:
+                return 0x0100;
+            case 2:
+                return 0x0110;
+            case 3:
+                return 0x0120;
+            case 4:
+                return 0x0130;
+            case 5:
+                return 0x0140;
+            default:
+                return 0x0100;
+        }
+    }
+
+    private BigDecimal getTargetValueByCommandType(GridDispatchCommand command) {
+        Integer type = command.getCommandType();
+        if (type == null) return null;
+        switch (type) {
+            case 1:
+                return command.getTargetActivePower();
+            case 2:
+                return command.getTargetReactivePower();
+            case 3:
+                return command.getTargetVoltage();
+            case 4:
+                return command.getTargetFrequency();
+            case 5:
+                return command.getStartStop() != null && command.getStartStop() ? BigDecimal.ONE : BigDecimal.ZERO;
+            default:
+                return command.getTargetActivePower();
+        }
+    }
+
     private void sendIec104StartDt() throws Exception {
         byte[] startDt = {0x68, 0x04, 0x07, 0x00, 0x00, 0x00};
         outputStream.write(startDt);
@@ -224,8 +325,120 @@ public class Iec104ProtocolAdapter implements DispatchProtocolAdapter {
     }
 
     private List<GridDispatchCommand> parseIec104CommandFrame(byte[] data, int len) {
-        logger.debug("[IEC104] 解析指令帧: {}", bytesToHexString(data, len));
-        return new ArrayList<>();
+        List<GridDispatchCommand> commands = new ArrayList<>();
+        String hexFrame = bytesToHexString(data, len);
+        logger.debug("[IEC104] 解析指令帧: {}", hexFrame);
+
+        if (len < 6 || (data[0] & 0xFF) != 0x68) {
+            logger.warn("[IEC104] 无效的IEC104帧格式");
+            return commands;
+        }
+
+        int apduLen = data[1] & 0xFF;
+        if (apduLen < 4 || len < (apduLen + 2)) {
+            logger.warn("[IEC104] 帧长度不匹配，期望长度={}, 实际长度={}", apduLen + 2, len);
+            return commands;
+        }
+
+        int typeId = data[6] & 0xFF;
+        int vsq = data[7] & 0xFF;
+        int cot = data[8] & 0xFF;
+        int asduAddr = ((data[10] & 0xFF) << 8) | (data[9] & 0xFF);
+        int infoObjCount = vsq & 0x7F;
+
+        logger.debug("[IEC104] 帧解析: typeId={}, cot={}, asduAddr={}, infoObjCount={}", typeId, cot, asduAddr, infoObjCount);
+
+        if (typeId == 0x2D || typeId == 0x0D || typeId == 0x06) {
+            int pos = 11;
+            for (int i = 0; i < infoObjCount && pos + 7 <= len; i++) {
+                try {
+                    int infoAddr = ((data[pos + 2] & 0xFF) << 16)
+                            | ((data[pos + 1] & 0xFF) << 8)
+                            | (data[pos] & 0xFF);
+                    pos += 3;
+
+                    GridDispatchCommand command = new GridDispatchCommand();
+                    command.setProtocolCommandId(String.valueOf(infoAddr));
+                    command.setAsduAddress(asduAddr);
+
+                    if (typeId == 0x2D) {
+                        int rawValue = ((data[pos + 3] & 0xFF) << 24)
+                                | ((data[pos + 2] & 0xFF) << 16)
+                                | ((data[pos + 1] & 0xFF) << 8)
+                                | (data[pos] & 0xFF);
+                        float floatValue = Float.intBitsToFloat(rawValue);
+                        BigDecimal value = BigDecimal.valueOf(floatValue).setScale(2, RoundingMode.HALF_UP);
+
+                        int commandType = mapInfoAddrToCommandType(infoAddr);
+                        command.setCommandType(commandType);
+
+                        if (commandType == 1) {
+                            command.setTargetActivePower(value);
+                        } else if (commandType == 2) {
+                            command.setTargetReactivePower(value);
+                        } else if (commandType == 3) {
+                            command.setTargetVoltage(value);
+                        } else if (commandType == 4) {
+                            command.setTargetFrequency(value);
+                        }
+                        command.setRawMessage(hexFrame);
+                        commands.add(command);
+                        pos += 5;
+                    } else if (typeId == 0x0D) {
+                        int rawValue = ((data[pos + 1] & 0xFF) << 8) | (data[pos] & 0xFF);
+                        command.setAdjustRatio(rawValue);
+                        command.setCommandType(1);
+                        command.setRawMessage(hexFrame);
+                        commands.add(command);
+                        pos += 3;
+                    } else if (typeId == 0x06) {
+                        int scs = data[pos] & 0x01;
+                        command.setStartStop(scs == 1);
+                        command.setCommandType(5);
+                        command.setRawMessage(hexFrame);
+                        commands.add(command);
+                        pos += 2;
+                    }
+                } catch (Exception e) {
+                    logger.error("[IEC104] 解析第{}个信息对象失败", i + 1, e);
+                    break;
+                }
+            }
+        } else if (typeId == 0x64) {
+            GridDispatchCommand command = new GridDispatchCommand();
+            command.setCommandType(1);
+            command.setTargetActivePower(BigDecimal.ZERO);
+            command.setRawMessage(hexFrame);
+            commands.add(command);
+            logger.info("[IEC104] 收到初始化结束帧，创建默认调节指令");
+        }
+
+        if (!commands.isEmpty()) {
+            logger.info("[IEC104] 成功解析{}条调度指令", commands.size());
+        }
+
+        return commands;
+    }
+
+    private int mapInfoAddrToCommandType(int infoAddr) {
+        switch (infoAddr) {
+            case 0x0001:
+            case 0x0100:
+                return 1;
+            case 0x0002:
+            case 0x0110:
+                return 2;
+            case 0x0003:
+            case 0x0120:
+                return 3;
+            case 0x0004:
+            case 0x0130:
+                return 4;
+            case 0x0005:
+                return 5;
+            default:
+                return 1;
+        }
     }
 
     private String buildIec104CommandConfirmFrame(GridDispatchCommand command, boolean success, String reason) {

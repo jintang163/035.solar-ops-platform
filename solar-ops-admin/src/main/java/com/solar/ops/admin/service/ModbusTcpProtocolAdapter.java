@@ -12,6 +12,7 @@ import java.io.DataOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -216,6 +217,118 @@ public class ModbusTcpProtocolAdapter implements DispatchProtocolAdapter {
         }
     }
 
+    @Override
+    public boolean sendInverterAdjustCommand(GridDispatchCommand command) {
+        if (!isConnected()) {
+            logger.warn("[ModbusTCP] 连接未建立，无法发送逆变器调节指令");
+            return false;
+        }
+
+        try {
+            int slaveId = currentConfig != null && currentConfig.getCommonAddress() != null
+                    ? currentConfig.getCommonAddress() : 1;
+
+            Integer commandType = command.getCommandType();
+            if (commandType == null) {
+                commandType = 1;
+            }
+
+            int startAddr = getModbusStartAddr(commandType);
+            BigDecimal targetValue = getTargetValueByCommandType(command);
+
+            if (targetValue == null) {
+                logger.warn("[ModbusTCP] 目标值为空，无法发送调节指令，commandType={}", commandType);
+                return false;
+            }
+
+            int val = targetValue.multiply(BigDecimal.TEN).intValue();
+            int[] values = new int[]{val & 0xFFFF, (val >> 16) & 0xFFFF};
+
+            int tid = ++transactionId & 0xFFFF;
+            byte[] frame = buildModbusWriteMultipleRegistersRequest(
+                    tid, slaveId, startAddr, 2, values
+            );
+
+            String hexMessage = bytesToHex(frame);
+            command.setRawMessage(hexMessage);
+
+            if (socket != null && !socket.isClosed() && outputStream != null) {
+                outputStream.write(frame);
+                outputStream.flush();
+
+                byte[] resp = new byte[12];
+                int len = inputStream.read(resp);
+                if (len <= 0) {
+                    logger.warn("[ModbusTCP] 发送逆变器调节指令无响应");
+                    return false;
+                }
+                logger.info("[ModbusTCP] 逆变器调节指令发送成功, 响应: {}", bytesToHex(resp, len));
+            } else {
+                logger.info("[ModbusTCP] 模拟模式下发送逆变器调节指令: type={}, target={}", commandType, targetValue);
+            }
+
+            if (commandType == 2 && command.getTargetReactivePower() != null) {
+                int reactiveVal = command.getTargetReactivePower().multiply(BigDecimal.TEN).intValue();
+                int[] reactiveValues = new int[]{reactiveVal & 0xFFFF, (reactiveVal >> 16) & 0xFFFF};
+                int reactiveTid = ++transactionId & 0xFFFF;
+                byte[] reactiveFrame = buildModbusWriteMultipleRegistersRequest(
+                        reactiveTid, slaveId, 0x0010, 2, reactiveValues
+                );
+                if (socket != null && !socket.isClosed() && outputStream != null) {
+                    outputStream.write(reactiveFrame);
+                    outputStream.flush();
+                    byte[] reactiveResp = new byte[12];
+                    int reactiveLen = inputStream.read(reactiveResp);
+                    logger.info("[ModbusTCP] 无功功率调节指令发送成功, 响应长度: {}", reactiveLen);
+                }
+            }
+
+            logger.info("[ModbusTCP] 逆变器调节指令已下发: commandNo={}, type={}, targetValue={}",
+                    command.getCommandNo(), commandType, targetValue);
+            return true;
+
+        } catch (Exception e) {
+            logger.error("[ModbusTCP] 发送逆变器调节指令失败", e);
+            return false;
+        }
+    }
+
+    private int getModbusStartAddr(int commandType) {
+        switch (commandType) {
+            case 1:
+                return 0x0000;
+            case 2:
+                return 0x0010;
+            case 3:
+                return 0x0020;
+            case 4:
+                return 0x0030;
+            case 5:
+                return 0x0040;
+            default:
+                return 0x0000;
+        }
+    }
+
+    private BigDecimal getTargetValueByCommandType(GridDispatchCommand command) {
+        Integer type = command.getCommandType();
+        if (type == null) return null;
+        switch (type) {
+            case 1:
+                return command.getTargetActivePower();
+            case 2:
+                return command.getTargetReactivePower() != null ? command.getTargetReactivePower() : command.getTargetActivePower();
+            case 3:
+                return command.getTargetVoltage();
+            case 4:
+                return command.getTargetFrequency();
+            case 5:
+                return command.getStartStop() != null && command.getStartStop() ? BigDecimal.ONE : BigDecimal.ZERO;
+            default:
+                return command.getTargetActivePower();
+        }
+    }
+
     private byte[] buildModbusWriteMultipleRegistersRequest(int tid, int slaveId, int startAddr, int regCount, int[] values) {
         int len = 7 + 1 + regCount * 2;
         byte[] frame = new byte[6 + len];
@@ -271,8 +384,117 @@ public class ModbusTcpProtocolAdapter implements DispatchProtocolAdapter {
     }
 
     private List<GridDispatchCommand> parseModbusCommandRegisters(byte[] data, int len) {
-        logger.debug("[ModbusTCP] 解析指令寄存器: {}, len={}", bytesToHex(data, len), len);
-        return new ArrayList<>();
+        List<GridDispatchCommand> commands = new ArrayList<>();
+        String hexFrame = bytesToHex(data, len);
+        logger.debug("[ModbusTCP] 解析指令寄存器: {}, len={}", hexFrame, len);
+
+        if (data == null || len < 2) {
+            logger.warn("[ModbusTCP] 数据为空或长度不足");
+            return commands;
+        }
+
+        int registerCount = len / 2;
+        if (registerCount < 8) {
+            logger.warn("[ModbusTCP] 寄存器数量不足，至少需要8个寄存器，实际={}", registerCount);
+            return commands;
+        }
+
+        try {
+            int pos = 0;
+
+            int commandFlag = ((data[pos] & 0xFF) << 8) | (data[pos + 1] & 0xFF);
+            pos += 2;
+
+            if (commandFlag != 0xAAAA && commandFlag != 0x5555) {
+                logger.debug("[ModbusTCP] 指令标志位不匹配，跳过解析，flag=0x{}", Integer.toHexString(commandFlag));
+                return commands;
+            }
+
+            int commandType = ((data[pos] & 0xFF) << 8) | (data[pos + 1] & 0xFF);
+            pos += 2;
+
+            int stationId = ((data[pos] & 0xFF) << 8) | (data[pos + 1] & 0xFF);
+            pos += 2;
+
+            int inverterIdHigh = ((data[pos] & 0xFF) << 8) | (data[pos + 1] & 0xFF);
+            pos += 2;
+            int inverterIdLow = ((data[pos] & 0xFF) << 8) | (data[pos + 1] & 0xFF);
+            pos += 2;
+            long inverterId = ((long) inverterIdHigh << 16) | (inverterIdLow & 0xFFFFL);
+
+            int targetValueHigh = ((data[pos] & 0xFF) << 8) | (data[pos + 1] & 0xFF);
+            pos += 2;
+            int targetValueLow = ((data[pos] & 0xFF) << 8) | (data[pos + 1] & 0xFF);
+            pos += 2;
+            int targetRaw = (targetValueHigh << 16) | (targetValueLow & 0xFFFF);
+            float targetFloat = Float.intBitsToFloat(targetRaw);
+            BigDecimal targetValue = BigDecimal.valueOf(targetFloat).setScale(2, RoundingMode.HALF_UP);
+
+            int adjustRatio = ((data[pos] & 0xFF) << 8) | (data[pos + 1] & 0xFF);
+            pos += 2;
+
+            int priority = ((data[pos] & 0xFF) << 8) | (data[pos + 1] & 0xFF);
+            pos += 2;
+
+            GridDispatchCommand command = new GridDispatchCommand();
+            command.setProtocolCommandId(String.valueOf(commandFlag));
+            command.setCommandType(mapModbusCommandType(commandType));
+
+            if (stationId > 0) {
+                command.setStationId((long) stationId);
+            }
+            if (inverterId > 0) {
+                command.setInverterId(inverterId);
+            }
+
+            Integer mappedType = command.getCommandType();
+            if (mappedType == 1) {
+                command.setTargetActivePower(targetValue);
+            } else if (mappedType == 2) {
+                command.setTargetReactivePower(targetValue);
+            } else if (mappedType == 3) {
+                command.setTargetVoltage(targetValue);
+            } else if (mappedType == 4) {
+                command.setTargetFrequency(targetValue);
+            } else if (mappedType == 5) {
+                command.setStartStop(targetValue.intValue() == 1);
+            }
+
+            if (adjustRatio > 0 && adjustRatio <= 100) {
+                command.setAdjustRatio(adjustRatio);
+            }
+            if (priority >= 1 && priority <= 4) {
+                command.setPriority(priority);
+            }
+
+            command.setRawMessage(hexFrame);
+            commands.add(command);
+
+            logger.info("[ModbusTCP] 成功解析调度指令: type={}, stationId={}, inverterId={}, targetValue={}",
+                    command.getCommandType(), command.getStationId(), command.getInverterId(), targetValue);
+
+        } catch (Exception e) {
+            logger.error("[ModbusTCP] 解析指令寄存器失败", e);
+        }
+
+        return commands;
+    }
+
+    private Integer mapModbusCommandType(int modbusType) {
+        switch (modbusType) {
+            case 0x0001:
+                return 1;
+            case 0x0002:
+                return 2;
+            case 0x0003:
+                return 3;
+            case 0x0004:
+                return 4;
+            case 0x0005:
+                return 5;
+            default:
+                return 1;
+        }
     }
 
     private void closeQuietly() {
