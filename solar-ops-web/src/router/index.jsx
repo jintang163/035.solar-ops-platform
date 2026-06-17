@@ -32,6 +32,7 @@ import KnowledgeBaseList from '../pages/knowledge/KnowledgeBaseList'
 import StationCompare from '../pages/station/StationCompare'
 import DataPlayback from '../pages/playback/DataPlayback'
 import FaultReview from '../pages/playback/FaultReview'
+import BigScreenDashboard from '../pages/big-screen/BigScreenDashboard'
 
 const routes = [
   {
@@ -71,7 +72,9 @@ const routes = [
       { path: 'playback/data', element: <DataPlayback /> },
       { path: 'playback/fault-review/:workOrderId', element: <FaultReview /> },
       { path: 'settings/org', element: <OrgManagement /> },
-      { path: 'settings/user', element: <UserManagement /> }
+      { path: 'settings/user', element: <UserManagement /> },
+      { path: 'big-screen', element: <BigScreenDashboard /> },
+      { path: 'mobile/dashboard', element: <BigScreenDashboard /> }
     ]
   },
   {

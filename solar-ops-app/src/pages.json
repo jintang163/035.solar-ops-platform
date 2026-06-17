@@ -178,6 +178,14 @@
         "navigationBarTitleText": "电站对比",
         "enablePullDownRefresh": true
       }
+    },
+    {
+      "path": "pages/dashboard/dashboard",
+      "style": {
+        "navigationBarTitleText": "运维驾驶舱",
+        "enablePullDownRefresh": true,
+        "backgroundTextStyle": "dark"
+      }
     }
   ],
   "globalStyle": {

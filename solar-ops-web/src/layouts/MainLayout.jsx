@@ -15,7 +15,7 @@ import {
   AppstoreOutlined,
   QrcodeOutlined,
   RiseOutlined,
-  DroneOutlined,
+  RobotOutlined,
   BugOutlined,
   DropletOutlined,
   AreaChartOutlined,
@@ -147,7 +147,7 @@ const menuItems = [
   },
   {
     key: '/drone',
-    icon: <DroneOutlined />,
+    icon: <RobotOutlined />,
     label: '无人机巡检',
     children: [
       {

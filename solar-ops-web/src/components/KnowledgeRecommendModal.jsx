@@ -35,8 +35,8 @@ import {
   getUserFeedback,
   getKnowledgeDetail,
   recordKnowledgeUsage
-} from '../../api/knowledge'
-import { getUser } from '../../utils/auth'
+} from '../api/knowledge'
+import { getUser } from '../utils/auth'
 
 const FAULT_LEVEL_MAP = {
   1: { color: 'green', text: '低级' },

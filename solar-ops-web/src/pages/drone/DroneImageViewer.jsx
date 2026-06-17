@@ -127,7 +127,7 @@ const DroneImageViewer = ({ visible, imageData, onClose }) => {
             ctx.fillText(`(${center[0]},${center[1]})`, center[0] + 8, center[1] + 4)
           }
 
-          const label = `${defectTypeNames[defect.defectType] || defect.defectType} ${(defect.confidence * 100).toFixed(1)}%`
+          let label = `${defectTypeNames[defect.defectType] || defect.defectType} ${(defect.confidence * 100).toFixed(1)}%`
           if (defect.temperature) {
             label += ` ${defect.temperature}℃`
           }
