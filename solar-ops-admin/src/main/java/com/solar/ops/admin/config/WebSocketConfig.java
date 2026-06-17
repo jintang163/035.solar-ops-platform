@@ -16,6 +16,9 @@ public class WebSocketConfig implements WebSocketConfigurer {
     @Resource
     private DashboardWebSocketHandler dashboardWebSocketHandler;
 
+    @Resource
+    private VoiceBroadcastWebSocketHandler voiceBroadcastWebSocketHandler;
+
     @Bean
     public ServerEndpointExporter serverEndpointExporter() {
         return new ServerEndpointExporter();
@@ -24,6 +27,8 @@ public class WebSocketConfig implements WebSocketConfigurer {
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(dashboardWebSocketHandler, "/websocket/dashboard")
+                .setAllowedOrigins("*");
+        registry.addHandler(voiceBroadcastWebSocketHandler, "/websocket/voice-broadcast")
                 .setAllowedOrigins("*");
     }
 }

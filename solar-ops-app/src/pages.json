@@ -186,6 +186,14 @@
         "enablePullDownRefresh": true,
         "backgroundTextStyle": "dark"
       }
+    },
+    {
+      "path": "pages/voiceBroadcast/voiceBroadcast",
+      "style": {
+        "navigationBarTitleText": "语音播报记录",
+        "enablePullDownRefresh": true,
+        "backgroundTextStyle": "dark"
+      }
     }
   ],
   "globalStyle": {

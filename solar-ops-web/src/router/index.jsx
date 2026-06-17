@@ -33,6 +33,7 @@ import StationCompare from '../pages/station/StationCompare'
 import DataPlayback from '../pages/playback/DataPlayback'
 import FaultReview from '../pages/playback/FaultReview'
 import BigScreenDashboard from '../pages/big-screen/BigScreenDashboard'
+import VoiceBroadcastHistory from '../pages/voice-broadcast/VoiceBroadcastHistory'
 
 const routes = [
   {
@@ -74,7 +75,8 @@ const routes = [
       { path: 'settings/org', element: <OrgManagement /> },
       { path: 'settings/user', element: <UserManagement /> },
       { path: 'big-screen', element: <BigScreenDashboard /> },
-      { path: 'mobile/dashboard', element: <BigScreenDashboard /> }
+      { path: 'mobile/dashboard', element: <BigScreenDashboard /> },
+      { path: 'voice-broadcast', element: <VoiceBroadcastHistory /> }
     ]
   },
   {
