@@ -34,6 +34,7 @@ import DataPlayback from '../pages/playback/DataPlayback'
 import FaultReview from '../pages/playback/FaultReview'
 import BigScreenDashboard from '../pages/big-screen/BigScreenDashboard'
 import VoiceBroadcastHistory from '../pages/voice-broadcast/VoiceBroadcastHistory'
+import GridDispatchDashboard from '../pages/grid-dispatch/GridDispatchDashboard'
 
 const routes = [
   {
@@ -76,7 +77,8 @@ const routes = [
       { path: 'settings/user', element: <UserManagement /> },
       { path: 'big-screen', element: <BigScreenDashboard /> },
       { path: 'mobile/dashboard', element: <BigScreenDashboard /> },
-      { path: 'voice-broadcast', element: <VoiceBroadcastHistory /> }
+      { path: 'voice-broadcast', element: <VoiceBroadcastHistory /> },
+      { path: 'grid-dispatch', element: <GridDispatchDashboard /> }
     ]
   },
   {

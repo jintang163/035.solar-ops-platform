@@ -117,3 +117,14 @@ voice:
     push-method: http
     mqtt-broker: tcp://localhost:1883
     mqtt-topic: solar/speaker/broadcast
+
+grid:
+  dispatch:
+    enabled: true
+    default-protocol: IEC104
+    upload-interval: 5
+    command-timeout: 60
+    max-retry-count: 3
+    redis-cache-key: "grid:dispatch:cache:"
+    redis-cache-ttl: 3600
+    alarm-on-fail: true

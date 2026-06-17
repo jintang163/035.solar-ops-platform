@@ -194,6 +194,14 @@
         "enablePullDownRefresh": true,
         "backgroundTextStyle": "dark"
       }
+    },
+    {
+      "path": "pages/gridDispatch/gridDispatch",
+      "style": {
+        "navigationBarTitleText": "电网调度",
+        "enablePullDownRefresh": true,
+        "backgroundTextStyle": "dark"
+      }
     }
   ],
   "globalStyle": {
