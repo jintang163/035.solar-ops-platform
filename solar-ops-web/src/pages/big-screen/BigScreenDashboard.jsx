@@ -14,6 +14,7 @@ import {
   ReloadOutlined,
   ArrowLeftOutlined
 } from '@ant-design/icons'
+import * as echarts from 'echarts'
 import ReactECharts from 'echarts-for-react'
 import { getRealTimeDashboard, getInverterMonitorByStation } from '../../api/dashboard'
 import { getDashboardWebSocket, closeDashboardWebSocket } from '../../utils/dashboardWebsocket'
@@ -32,6 +33,9 @@ const BigScreenDashboard = () => {
   const [wsConnected, setWsConnected] = useState(false)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [drillDownLevel, setDrillDownLevel] = useState(0)
+  const [mapRegistered, setMapRegistered] = useState(false)
+
+  const mapRegisteredRef = useRef(false)
 
   const wsRef = useRef(null)
   const carouselTimerRef = useRef(null)
@@ -145,6 +149,20 @@ const BigScreenDashboard = () => {
     if (temp > 45) return 'warn'
     return ''
   }
+
+  useEffect(() => {
+    if (mapRegisteredRef.current) return
+    fetch('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json')
+      .then(res => res.json())
+      .then(geoJson => {
+        echarts.registerMap('china', geoJson)
+        mapRegisteredRef.current = true
+        setMapRegistered(true)
+      })
+      .catch(err => {
+        console.error('加载中国地图数据失败:', err)
+      })
+  }, [])
 
   useEffect(() => {
     loadDashboardData()
@@ -417,9 +435,11 @@ const BigScreenDashboard = () => {
           const capacity = params.data.capacity || 0
           return baseSize + Math.min(capacity / 1000, 15)
         },
-        data: (dashboardData?.stationMapList || []).map((station, index) => ({
+        data: (dashboardData?.stationMapList || [])
+          .filter(station => station.longitude != null && station.latitude != null)
+          .map((station, index) => ({
           name: station.stationName,
-          value: [station.longitude || 116 + Math.random() * 10 - 5, station.latitude || 35 + Math.random() * 10 - 5],
+          value: [station.longitude, station.latitude],
           stationId: station.stationId,
           stationCode: station.stationCode,
           capacity: station.capacity,
@@ -467,11 +487,13 @@ const BigScreenDashboard = () => {
           brushType: 'stroke'
         },
         data: isCarousel && dashboardData?.stationMapList?.[carouselIndex]
+          && dashboardData.stationMapList[carouselIndex].longitude != null
+          && dashboardData.stationMapList[carouselIndex].latitude != null
           ? [{
               name: dashboardData.stationMapList[carouselIndex].stationName,
               value: [
-                dashboardData.stationMapList[carouselIndex].longitude || 116,
-                dashboardData.stationMapList[carouselIndex].latitude || 35
+                dashboardData.stationMapList[carouselIndex].longitude,
+                dashboardData.stationMapList[carouselIndex].latitude
               ],
               itemStyle: {
                 color: 'transparent',
@@ -665,10 +687,11 @@ const BigScreenDashboard = () => {
               </div>
               <div className="big-screen-map-container">
                 <ReactECharts
+                  key={mapRegistered ? 'map-ready' : 'map-loading'}
                   ref={chartRef}
                   option={mapOption}
                   style={{ height: '100%' }}
-                  loading={loading}
+                  loading={loading || !mapRegistered}
                   onEvents={onEvents}
                   opts={{ renderer: 'canvas' }}
                 />

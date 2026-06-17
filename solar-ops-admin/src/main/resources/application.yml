@@ -71,3 +71,13 @@ jwt:
   expiration: 86400000
   token-prefix: Bearer
   header: Authorization
+
+influxdb:
+  url: http://localhost:8086
+  username: admin
+  password: admin
+  database: solar_ops
+  retention-policy: autogen
+  connect-timeout: 10
+  read-timeout: 30
+  write-timeout: 10
